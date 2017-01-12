@@ -31,5 +31,7 @@ transfer_learning/
 model*
 tf.logs/*
 tf.models/*
-test_*.py
 bag_dump*
+Doxyfile
+doc/
+*.pickle
