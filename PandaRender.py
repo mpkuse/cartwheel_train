@@ -372,9 +372,10 @@ class TrainRenderer(ShowBase):
             # im_batch = copy.deepcopy( self.X_im_batch )
             # # label_batch = copy.deepcopy( self.X_label_batch )
             #
-            # r0 = np.random.randint( 0, im_batch.shape[0], batchsize )
+            r0 = np.random.randint( 0, im_batch.shape[0], batchsize )
             # r1 = np.random.randint( 0, im_batch.shape[0], batchsize )
-
+            im_batch = im_batch[r0]
+            label_batch = label_batch[r0]
 
         # Note:
         # What is being done here is a bit of a hack. The thing is
@@ -871,3 +872,496 @@ class TestRenderer(ShowBase):
 
         print 'Test Renderer Init Done'
         print self.tcolor.OKGREEN, 'Test Renderer Init Done', self.tcolor.ENDC
+
+
+
+# Setup NetVLAD Renderer - This renderer is custom made for NetVLAD training
+# It renders 16 images at a time. (q, (P1,P2,..P5), (N1,N2,...,N10)).
+# ie. 1st image is im, next 5 are near this im (potential positives).
+# Last 10 are far from im (definite negatives)
+class NetVLADRenderer(ShowBase):
+    renderIndx=0
+
+
+    # Basic Mesh & Camera Setup
+    def loadAllTextures(self, mesh, basePath, silent=True):
+        """ Loads texture files for a mesh """
+        c = 0
+        for child in mesh.getChildren():
+            submesh_name = child.get_name()
+            submesh_texture = basePath + submesh_name[:-5] + 'tex0.jpg'
+            child.setTexture( self.loader.loadTexture(submesh_texture) )
+
+            if silent == False:
+                print 'Loading texture file : ', submesh_texture
+            c = c + 1
+
+        print self.tcolor.OKGREEN, "Loaded ", c, "textures", self.tcolor.ENDC
+    def setupMesh(self):
+        """ Loads the .obj files. Will load mesh sub-divisions separately """
+
+        print 'Attempt Loading Mesh VErtices, FAces'
+        self.cyt = self.loader.loadModel( 'model_l/l6/level_6_0_0.obj' )
+        self.cyt2 = self.loader.loadModel( 'model_l/l6/level_6_128_0.obj' )
+
+        self.low_res = self.loader.loadModel( 'model_l/l3/level_3_0_0.obj' )
+        print self.tcolor.OKGREEN, 'Done Loading Vertices', self.tcolor.ENDC
+
+        print 'Attempt Loading Textures'
+        self.loadAllTextures( self.cyt, 'model_l/l6/')
+        self.loadAllTextures( self.cyt2, 'model_l/l6/')
+        self.loadAllTextures( self.low_res, 'model_l/l3/')
+        print self.tcolor.OKGREEN, 'Done Loading Textures', self.tcolor.ENDC
+
+    def positionMesh(self):
+        """ WIll have to manually adjust this for ur mesh. I position the
+        center where I fly my drone and oriented in ENU (East-north-up)
+        cords for easy alignment of GPS and my cordinates. If your model
+        is not metric scale will have to adjust for that too"""
+
+        self.cyt.setPos( 140,-450, 150 )
+        self.cyt2.setPos( 140,-450, 150 )
+        self.low_res.setPos( 140,-450, 150 )
+        self.cyt.setHpr( 198, -90, 0 )
+        self.cyt2.setHpr( 198, -90, 0 )
+        self.low_res.setHpr( 198, -90, 0 )
+        self.cyt.setScale(172)
+        self.cyt2.setScale(172)
+        self.low_res.setScale(172)
+
+    def customCamera(self, nameIndx):
+        lens = self.camLens
+        lens.setFov(83)
+        print 'self.customCamera : Set FOV at 83'
+        my_cam = Camera("cam"+nameIndx, lens)
+        my_camera = self.scene0.attachNewNode(my_cam)
+        # my_camera = self.render.attachNewNode(my_cam)
+        my_camera.setName("camera"+nameIndx)
+        return my_camera
+    def customDisplayRegion(self, rows, cols):
+        rSize = 1.0 / rows
+        cSize = 1.0 / cols
+
+        dr_list = []
+        for i in range(0,rows):
+            for j in range(0,cols):
+                # print i*rSize, (i+1)*rSize, j*cSize, (j+1)*cSize
+                dr_i = self.win2.makeDisplayRegion(i*rSize, (i+1)*rSize, j*cSize, (j+1)*cSize)
+                dr_i.setSort(-5)
+                dr_list.append( dr_i )
+        return dr_list
+
+
+    def mc_default( self, cam0X, cam0Y, cam0Z ):
+        return 0,0,80,0,0,0
+
+    def mc_far( self, cam0X, cam0Y, cam0Z ):
+        rf = np.random.uniform
+        nZ = rf(self.mc_Z_min,self.mc_Z_max)
+        fov = 1.3962 #80 degrees
+        sigma = cam0Z * np.tan(fov/2.)/3
+
+
+        nX = rf(self.mc_X_min, cam0X - 2*sigma) if rf(-1,1) > 0 else rf(cam0X + 2*sigma, self.mc_X_max )
+        nY = rf(self.mc_Y_min, cam0Y - 2*sigma) if rf(-1,1) > 0 else rf(cam0Y + 2*sigma, self.mc_Y_max )
+
+        yaw = rf(self.mc_yaw_min, self.mc_yaw_max)
+        return nX, nY, nZ, yaw, 0 , 0
+
+    # Return a random sample near (cam0X,cam0Y,cam0Z)
+    def mc_near( self, cam0X, cam0Y, cam0Z ):
+        rf = np.random.uniform
+        nZ = rf(self.mc_Z_min,self.mc_Z_max)
+        fov = 1.3962 #80 degrees
+        sigma = cam0Z * np.tan(fov/2.)/3
+
+        yaw = rf(self.mc_yaw_min, self.mc_yaw_max)
+        return rf(cam0X-sigma,cam0X+sigma),  rf(cam0Y-sigma,cam0Y+sigma),nZ,yaw,0.,0.
+
+    ## Gives a random 6-dof pose. Need to set params manually here.
+    ## X,Y,Z,  Yaw(abt Z-axis), Pitch(abt X-axis), Roll(abt Y-axis)
+    ## @param No
+    def monte_carlo_sample(self):
+
+        # mc_X_min etc are set in constructor
+        X = np.random.uniform(self.mc_X_min,self.mc_X_max)
+        Y = np.random.uniform(self.mc_Y_min,self.mc_Y_max)
+        Z = np.random.uniform(self.mc_Z_min,self.mc_Z_max)
+
+        yaw = np.random.uniform( self.mc_yaw_min, self.mc_yaw_max)
+        roll = 0#np.random.uniform( self.mc_roll_min, self.mc_roll_max)
+        pitch = 0#np.random.uniform( self.mc_pitch_min, self.mc_pitch_max)
+
+        return X,Y,Z, yaw,roll,pitch
+
+    ## Annotation-helpers for self.render
+    def putBoxes(self,X,Y,Z,r=1.,g=0.,b=0., scale=1.0):
+        cube_x = CubeMaker.CubeMaker().generate()
+        cube_x.setColor(r,g,b)
+        cube_x.setScale(scale)
+        cube_x.reparentTo(self.render)
+        cube_x.setPos(X,Y,Z)
+
+    ## Set a cube in 3d env
+    def putTrainingBox(self,task):
+        cube = CubeMaker.CubeMaker().generate()
+
+        cube.setTransparency(TransparencyAttrib.MAlpha)
+        cube.setAlphaScale(0.5)
+
+        # cube.setScale(10)
+        # mc_X_min etc are set in constructor
+        sx = 0.5 * (self.mc_X_max - self.mc_X_min)
+        sy = 0.5 * (self.mc_Y_max - self.mc_Y_min)
+        sz = 0.5 * (self.mc_Z_max - self.mc_Z_min)
+
+        ax = 0.5 * (self.mc_X_max + self.mc_X_min)
+        ay = 0.5 * (self.mc_Y_max + self.mc_Y_min)
+        az = 0.5 * (self.mc_Z_max + self.mc_Z_min)
+
+        cube.setSx(sx)
+        cube.setSy(sy)
+        cube.setSz(sz)
+        cube.reparentTo(self.render)
+        cube.setPos(ax,ay,az)
+
+
+    ## Task. This task draw the XYZ axis
+    def putAxesTask(self,task):
+        if (task.frame / 10) % 2 == 0:
+            cube_x = CubeMaker.CubeMaker().generate()
+            cube_x.setColor(1.0,0.0,0.0)
+            cube_x.setScale(1)
+            cube_x.reparentTo(self.render)
+            cube_x.setPos(task.frame,0,0)
+
+            cube_y = CubeMaker.CubeMaker().generate()
+            cube_y.setColor(0.0,1.0,0.0)
+            cube_y.setScale(1)
+            cube_y.reparentTo(self.render)
+            cube_y.setPos(0,task.frame,0)
+
+            cube_z = CubeMaker.CubeMaker().generate()
+            cube_z.setColor(0.0,0.0,1.0)
+            cube_z.setScale(1)
+            cube_z.reparentTo(self.render)
+            cube_z.setPos(0,0,task.frame)
+        if task.time > 25:
+            return None
+        return task.cont
+
+
+    ## Render-n-Learn task
+    ##
+    ## set pose in each camera <br/>
+    ## make note of the poses just set as this will take effect next <br/>
+    ## Retrive Rendered Data <br/>
+    ## Cut rendered data into individual image. Note rendered data will be 4X4 grid of images <br/>
+    ## Put imX into the queue <br/>
+    def renderNlearnTask(self, task):
+        if task.time < 2: #do not do anything for 1st 2 sec
+            return task.cont
+
+
+        # print randX, randY, randZ
+
+        #
+        ## set pose in each camera
+        # Note: The texture is grided images in a col-major format
+        poses = np.zeros( (len(self.cameraList), 4), dtype='float32' )
+        _randX= _randY= _randZ= _randYaw= _randPitch= _randRoll = 0
+        for i in range(len(self.cameraList)):
+
+            if i==0:
+                _randX,_randY, _randZ, _randYaw, _randPitch, _randRoll = self.monte_carlo_sample()
+                (randX,randY, randZ, randYaw, randPitch, randRoll) = _randX, _randY, _randZ, _randYaw, _randPitch, _randRoll
+            elif i>=1 and i<6:
+                randX,randY, randZ, randYaw, randPitch, randRoll = self.mc_near(_randX, _randY, _randZ )
+            else:
+                randX,randY, randZ, randYaw, randPitch, randRoll = self.mc_far(_randX, _randY, _randZ)
+
+
+
+            self.cameraList[i].setPos(randX,randY,randZ)
+            self.cameraList[i].setHpr(randYaw,-90+randPitch,0+randRoll)
+
+            poses[i,0] = randX
+            poses[i,1] = randY
+            poses[i,2] = randZ
+            poses[i,3] = randYaw
+
+        #     self.putBoxes(randX,randY,randZ, scale=0.3)
+        #
+        # if task.frame < 100:
+        #     return task.cont
+        # else:
+        #     return None
+
+
+
+        ## make note of the poses just set as this will take effect next
+        if NetVLADRenderer.renderIndx == 0:
+            NetVLADRenderer.renderIndx = NetVLADRenderer.renderIndx + 1
+            self.prevPoses = poses
+            return task.cont
+
+
+
+        #
+        ## Retrive Rendered Data
+        tex = self.win2.getScreenshot()
+        A = np.array(tex.getRamImageAs("RGB")).reshape(960,1280,3)
+        # A = np.zeros((960,1280,3))
+        # A_bgr =  cv2.cvtColor(A.astype('uint8'),cv2.COLOR_RGB2BGR)
+        # cv2.imwrite( str(TrainRenderer.renderIndx)+'.png', A_bgr.astype('uint8') )
+        # myTexture = self.win2.getTexture()
+        # print myTexture
+
+        # retrive poses from prev render
+        texPoses = self.prevPoses
+
+        #
+        ## Cut rendered data into individual image. Note rendered data will be 4X4 grid of images
+        #960 rows and 1280 cols (4x4 image-grid)
+        nRows = 240
+        nCols = 320
+        # Iterate over the rendered texture in a col-major format
+        c=0
+        if self.q_imStack.qsize() < 150:
+            for j in range(4): #j is for cols-indx
+                for i in range(4): #i is for rows-indx
+                    #print i*nRows, j*nCols, (i+1)*nRows, (j+1)*nCols
+                    im = A[i*nRows:(i+1)*nRows,j*nCols:(j+1)*nCols,:]
+                    #imX = im.astype('float32')/255. - .5 # TODO: have a mean image
+                    #imX = (im.astype('float32') - 128.0) /128.
+                    imX = im.astype('float32')  #- self.meanImage
+
+                    ## Put imX into the queue
+                    # do not queue up if queue size begin to exceed 150
+
+
+                    self.q_imStack.put( imX )
+                    self.q_labelStack.put( texPoses[c,:] )
+
+
+                    # fname = '__'+str(poses[c,0]) + '_' + str(poses[c,1]) + '_' + str(poses[c,2]) + '_' + str(poses[c,3]) + '_'
+                    # cv2.imwrite( str(TrainRenderer.renderIndx)+'__'+str(i)+str(j)+fname+'.png', imX.astype('uint8') )
+
+                    c = c + 1
+        else:
+            print 'q_imStack.qsize() > 150. Queue is filled, not retriving the rendered data'
+
+
+
+        #
+        # Call caffe iteration (reads from q_imStack and q_labelStack)
+        #       Possibly upgrade to TensorFlow
+        # self.learning_iteration()
+
+
+
+        # if( TrainRenderer.renderIndx > 50 ):
+        #     return None
+
+        #
+        # Prep for Next Iteration
+        NetVLADRenderer.renderIndx = NetVLADRenderer.renderIndx + 1
+        self.prevPoses = poses
+
+
+
+        return task.cont
+
+
+    ## Execute 1-step.
+    ##
+    ## This function is to be called from outside to render once. This is a wrapper for app.taskMgr.step()
+    def step(self, batchsize):
+        """ One rendering.
+        This function needs to be called from outside in a loop for continous rendering
+        Returns 2 variables. One im_batch and another label
+        """
+
+        # ltimes = int( batchsize/16 ) + 1
+        # print 'Render ', ltimes, 'times'
+        # for x in range(ltimes):
+        # Note: 2 renders sometime fails. Donno exactly what happens :'(
+        # Instead I do app.taskMgr.step() in the main() instead, once and 1 time here. This seem to work OK
+        # self.taskMgr.step()
+        # Thread.sleep(0.1)
+
+        self.taskMgr.step()
+
+        # print 'Queues Status (imStack=%d,labelStack=%d)' %(self.q_imStack.qsize(), self.q_labelStack.qsize())
+
+        # TODO: Check validity of batchsize. Also avoid hard coding the thresh for not retriving from queue.
+
+        im_batch = np.zeros((batchsize,240,320,3))
+        label_batch = np.zeros((batchsize,4))
+
+        # assert self.q_imStack.qsize() > 16*5
+        if self.q_imStack.qsize() >= 16*5:
+
+            # get a batch out
+            for i in range(batchsize):
+                im = self.q_imStack.get() #240x320x3 RGB
+                y = self.q_labelStack.get()
+                # print 'retrive', i
+
+
+                #remember to z-normalize
+                im_batch[i,:,:,0] = copy.deepcopy(im[:,:,0])#self.zNormalized( copy.deepcopy(im[:,:,0]) )
+                im_batch[i,:,:,1] = copy.deepcopy(im[:,:,1])#self.zNormalized( copy.deepcopy(im[:,:,1]) )
+                im_batch[i,:,:,2] = copy.deepcopy(im[:,:,2])#self.zNormalized( copy.deepcopy(im[:,:,2]) )
+                label_batch[i,0] =  copy.deepcopy( y[0] )
+                label_batch[i,1] =  copy.deepcopy( y[1] )
+                label_batch[i,2] =  copy.deepcopy( y[2] )
+                label_batch[i,3] =  copy.deepcopy( y[3] )
+
+        else:
+            return None, None
+            f_im = 'im_batch.pickle'
+            f_lab = 'label_batch.pickle'
+            print 'Loading : ', f_im, f_lab
+            with open( f_im, 'rb' ) as handle:
+                im_batch = pickle.load(handle )
+
+
+            with open( f_lab, 'rb' ) as handle:
+                label_batch = pickle.load(handle )
+            print 'Done.@!'
+
+            # im_batch = copy.deepcopy( self.X_im_batch )
+            # # label_batch = copy.deepcopy( self.X_label_batch )
+            #
+            r0 = np.random.randint( 0, im_batch.shape[0], batchsize )
+            # r1 = np.random.randint( 0, im_batch.shape[0], batchsize )
+            im_batch = im_batch[r0]
+            label_batch = label_batch[r0]
+
+        # Note:
+        # What is being done here is a bit of a hack. The thing is
+        # in the mainloop() ie. in train_tf_decop.py doesn't allow any
+        # if statements. So, I have instead saved a few example-renders on a
+        # pickle-file. If the queue is not sufficiently filled i just return
+        # from the saved file.
+
+        return im_batch, label_batch
+
+
+
+
+    def __init__(self):
+        ShowBase.__init__(self)
+        self.taskMgr.add( self.renderNlearnTask, "renderNlearnTask" ) #changing camera poses
+        self.taskMgr.add( self.putAxesTask, "putAxesTask" ) #draw co-ordinate axis
+        self.taskMgr.add( self.putTrainingBox, "putTrainingBox" )
+
+
+        # Set up training area. This is used in monte_carlo_sample() and putTrainingBox()
+        self.mc_X_max = 300
+        self.mc_X_min = -300
+
+        self.mc_Y_max = 360
+        self.mc_Y_min = -360
+
+        self.mc_Z_max = 120
+        self.mc_Z_min = 45
+
+        self.mc_yaw_max = 60
+        self.mc_yaw_min = -60
+
+        self.mc_roll_max = 5
+        self.mc_roll_min = -5
+
+        self.mc_pitch_max = 5
+        self.mc_pitch_min = -5
+
+        # # Note params
+        # self.PARAM_TENSORBOARD_PREFIX = TENSORBOARD_PREFIX
+        # self.PARAM_MODEL_SAVE_PREFIX = MODEL_SAVE_PREFIX
+        # self.PARAM_MODEL_RESTORE = MODEL_RESTORE
+        #
+        # self.PARAM_WRITE_SUMMARY_EVERY = WRITE_SUMMARY_EVERY
+        # self.PARAM_WRITE_TF_MODEL_EVERY = WRITE_TF_MODEL_EVERY
+
+
+        # Misc Setup
+        self.render.setAntialias(AntialiasAttrib.MAuto)
+        self.setFrameRateMeter(True)
+
+        self.tcolor = TerminalColors.bcolors()
+
+
+
+
+        #
+        # Set up Mesh (including load, position, orient, scale)
+        self.setupMesh()
+        self.positionMesh()
+
+
+        # Custom Render
+        #   Important Note: self.render displays the low_res and self.scene0 is the images to retrive
+        self.scene0 = NodePath("scene0")
+        # cytX = copy.deepcopy( cyt )
+        self.low_res.reparentTo(self.render)
+
+        self.cyt.reparentTo(self.scene0)
+        self.cyt2.reparentTo(self.scene0)
+
+
+
+
+
+        #
+        # Make Buffering Window
+        bufferProp = FrameBufferProperties().getDefault()
+        props = WindowProperties()
+        props.setSize(1280, 960)
+        win2 = self.graphicsEngine.makeOutput( pipe=self.pipe, name='wine1',
+        sort=-1, fb_prop=bufferProp , win_prop=props,
+        flags=GraphicsPipe.BFRequireWindow)
+        #flags=GraphicsPipe.BFRefuseWindow)
+        # self.window = win2#self.win #dr.getWindow()
+        self.win2 = win2
+        # self.win2.setupCopyTexture()
+
+
+
+        # Adopted from : https://www.panda3d.org/forums/viewtopic.php?t=3880
+        #
+        # Set Multiple Cameras
+        self.cameraList = []
+        for i in range(4*4):
+            print 'Create camera#', i
+            self.cameraList.append( self.customCamera( str(i) ) )
+
+
+        # Disable default camera
+        # dr = self.camNode.getDisplayRegion(0)
+        # dr.setActive(0)
+
+
+
+
+        #
+        # Set Display Regions (4x4)
+        dr_list = self.customDisplayRegion(4,4)
+
+
+        #
+        # Setup each camera
+        for i in  range(len(dr_list)):
+            dr_list[i].setCamera( self.cameraList[i] )
+
+
+        #
+        # Set buffered Queues (to hold rendered images and their positions)
+        # each queue element will be an RGB image of size 240x320x3
+        self.q_imStack = Queue.Queue()
+        self.q_labelStack = Queue.Queue()
+
+
+
+        print self.tcolor.OKGREEN, '\n##########\n'+'Panda3d Renderer Initialization Complete'+'\n##########\n', self.tcolor.ENDC

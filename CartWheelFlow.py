@@ -1,5 +1,7 @@
 """ A Class for defining the ResNet model in Tensorflow. """
 import tensorflow as tf
+import tensorflow.contrib.slim as slim
+
 
 import numpy as np
 import cv2
@@ -536,3 +538,106 @@ class CartWheelFlow:
         # NORMPROP
         # return (pool_out - 1.4850) / 0.7010
         return pool_out
+
+
+class VGGFlow:
+    def __init__(self):
+        x=0
+
+    # vggnet16. is_training is a placeholder boolean
+    def vgg16( self, inputs, is_training ):
+        with slim.arg_scope([slim.conv2d, slim.fully_connected],\
+                          activation_fn=tf.nn.relu,\
+                          #weights_initializer=tf.truncated_normal_initializer(0.0, 0.01),\
+                          weights_regularizer=slim.l2_regularizer(0.05),
+                          normalizer_fn=slim.batch_norm, \
+                          normalizer_params={'is_training':is_training, 'decay': 0.9, 'updates_collections': None}\
+                          ):
+            net = slim.repeat(inputs, 2, slim.conv2d, 64, [3, 3], scope='conv1')
+            net = slim.max_pool2d(net, [2, 2], scope='pool1')
+            net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], scope='conv2')
+            net = slim.max_pool2d(net, [2, 2], scope='pool2')
+            net = slim.repeat(net, 3, slim.conv2d, 256, [3, 3], scope='conv3')
+            net = slim.max_pool2d(net, [2, 2], scope='pool3')
+            net = slim.repeat(net, 3, slim.conv2d, 512, [3, 3], scope='conv4')
+            net = slim.max_pool2d(net, [2, 2], scope='pool4')
+            net = slim.repeat(net, 3, slim.conv2d, 512, [3, 3], scope='conv5')
+            net = slim.max_pool2d(net, [15, 20], scope='pool5')
+            fc_dat = slim.flatten( net )
+
+            pred_x   = slim.stack( fc_dat, slim.fully_connected, [128, 16, 1], scope='fcx' )
+            pred_y   = slim.stack( fc_dat, slim.fully_connected, [128, 16, 1], scope='fcy' )
+            pred_z   = slim.stack( fc_dat, slim.fully_connected, [128, 16, 1], scope='fcz' )
+            pred_yaw = slim.stack( fc_dat, slim.fully_connected, [128, 16, 1], scope='fcyaw' )
+
+            # net = slim.fully_connected(net, 4096, scope='fc6')
+            # net = slim.fully_connected(net, 4096, scope='fc7')
+            # net = slim.fully_connected(net, 4, activation_fn=None, scope='fc8')
+
+            return pred_x, pred_y, pred_z, pred_yaw
+
+
+## construct the VGG descriptor at 5 layers
+class VGGDescriptor:
+    def __init__(self):
+        x=0
+
+    # vggnet16. is_training is a placeholder boolean
+    def vgg16( self, inputs, is_training ):
+        with slim.arg_scope([slim.conv2d, slim.fully_connected],\
+                          activation_fn=tf.nn.relu,\
+                          weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),\
+                          weights_regularizer=slim.l2_regularizer(0.0005),
+                          normalizer_fn=slim.batch_norm, \
+                          normalizer_params={'is_training':is_training, 'decay': 0.9, 'updates_collections': None, 'scale': True}\
+                          ):
+            # tf.summary.histogram( 'xxxx_inputs', inputs )
+            net = slim.repeat(inputs, 2, slim.conv2d, 64, [3, 3], scope='conv1')
+            # tf.summary.histogram( 'xxxx_blk1', net )
+            net = slim.max_pool2d(net, [2, 2], scope='pool1')
+            net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], scope='conv2')
+            # tf.summary.histogram( 'xxxx_blk2', net )
+            net = slim.max_pool2d(net, [2, 2], scope='pool2')
+            net = slim.repeat(net, 1, slim.conv2d, 256, [3, 3], scope='conv3')
+            # tf.summary.histogram( 'xxxx_blk3', net )
+
+
+            # MAX POOLING
+            # TODO: To be replaced with NetVLAD-layer
+            net = slim.max_pool2d(net, kernel_size=[10, 10], stride=10, scope='pool3')
+            sh = tf.shape(net)
+            # print sh
+            # print net
+            net = tf.reshape( net, [sh[0], sh[1]*sh[2]*sh[3] ])
+
+
+
+
+            return net
+
+
+    def svm_hinge_loss( self,tf_vlad_word, nP, nN, margin ):
+        sp_q, sp_P, sp_N = tf.split_v( tf_vlad_word, [1,nP,nN], 0 )
+        #sp_q=query; sp_P=definite_positives ; sp_N=definite_negatives
+        #q:1x16k;   P:5x16k;    N:10x16k
+
+
+        # distance between sp_q and each of sp_P
+        one_a = tf.ones( [nP,1], tf.float32 )
+        a_ = tf.sub( tf.matmul( one_a, sp_q ), sp_P ) #   (1 * q - P)**2  ==> (q-P)**2
+        tf_dis_q_P = tf.reduce_mean( tf.mul( a_, a_ ), axis=1 ) #row-wise norm (L2)
+
+
+        # distance between sp_q and each of sp_N
+        one_b = tf.ones( [nN,1], tf.float32 )
+        b_ = tf.sub( tf.matmul( one_b, sp_q ), sp_N ) #   (1 * q - P)**2  ==> (q-P)**2
+        tf_dis_q_N = tf.reduce_mean( tf.mul( b_, b_ ), axis=1 ) #row-wise norm (L2)
+
+        # SVM-hinge loss
+        # max( tf_dis_q_P ): Farthest positive sample
+        # min( tf_dis_q_N ): Nearest
+        tf_margin = tf.constant(margin, name='margin')
+        cost_ = tf.sub( tf.add( tf.reduce_max(tf_dis_q_P), tf_margin),  tf.reduce_min(tf_dis_q_N), name='svm_margin_loss' ) # max_i a - max_j b + m
+        tf_cost = tf.maximum( cost_, tf.constant(0.0), name='hinge_loss' )
+
+        return tf_cost
