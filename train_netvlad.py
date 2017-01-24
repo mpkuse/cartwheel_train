@@ -32,7 +32,7 @@ def parse_cmd_args():
                                     Absense of this will lead to xavier init")
 
     parser.add_argument("-wsu", "--write_summary", help="Write summary after every N iteration (default:20)")
-    parser.add_argument("-wmo", "--write_tf_model", help="Write tf model after every N iteration (default:5000)")
+    parser.add_argument("-wmo", "--write_tf_model", help="Write tf model after every N iteration (default:500)")
     args = parser.parse_args()
 
 
@@ -57,7 +57,7 @@ def parse_cmd_args():
     if args.write_tf_model:
         write_tf_model = int(args.write_tf_model) #TODO: check this is not negative or zero
     else:
-        write_tf_model = 5000
+        write_tf_model = 500
 
 
     if args.model_restore:
@@ -148,6 +148,10 @@ fitting_loss = vgg_obj.svm_hinge_loss( tf_vlad_word, nP=nP, nN=nN, margin=margin
 regularization_loss = tf.add_n( slim.losses.get_regularization_losses() )
 tf_cost = regularization_loss + fitting_loss
 
+for vv in tf.trainable_variables():
+    print 'name=', vv.name, 'shape=' ,vv.get_shape().as_list()
+print '# of trainable_vars : ', len(tf.trainable_variables())
+# quit()
 
 
 #
@@ -158,9 +162,7 @@ tensorflow_opt = tf.train.RMSPropOptimizer( tf_lr )
 
 
 trainable_vars = tf.trainable_variables()
-for vv in trainable_vars:
-    print 'name=', vv.name, 'shape=' ,vv.get_shape().as_list()
-print '# of trainable_vars : ', len(trainable_vars)
+
 
 
 # borrowed from https://github.com/tensorflow/tensorflow/issues/3994 (issue 3994 of tensorflow)
@@ -198,6 +200,19 @@ for gg in accum_vars:
 # Init Tensorflow - Xavier initializer, session
 tensorflow_session = tf.Session()
 
+
+#
+# Tensorboard and Saver
+# Tensorboard
+summary_writer = tf.summary.FileWriter( PARAM_tensorboard_prefix, tensorflow_session.graph )
+summary_op = tf.summary.merge_all()
+
+
+# Saver
+tensorflow_saver = tf.train.Saver()
+
+
+
 # If PARAM_model_restore is none means init from scratch.
 if PARAM_model_restore == None:
     print tcolor.OKGREEN,'global_variables_initializer() : xavier', tcolor.ENDC
@@ -214,16 +229,6 @@ else:
 
 
 
-#
-# Tensorboard and Saver
-# Tensorboard
-summary_writer = tf.summary.FileWriter( PARAM_tensorboard_prefix, tensorflow_session.graph )
-summary_op = tf.summary.merge_all()
-
-
-# Saver
-with tf.device( '/cpu:0' ):
-    tensorflow_saver = tf.train.Saver()
 
 
 #
@@ -269,7 +274,7 @@ while True:
 
 
 
-    _, summary_exec = tensorflow_session.run( [train_step,summary_op], feed_dict={tf_lr: get_learning_rate(tf_iteration, 0.001) } )
+    _, summary_exec = tensorflow_session.run( [train_step,summary_op], feed_dict={tf_lr: get_learning_rate(tf_iteration, 0.0005) } )
 
     print '%3d(%8.2fms) : cost=%8.3f cc_cost=%8.3f fit_loss=%8.3f reg_loss=%8.3f' %(tf_iteration, 1000.*(time.time() - startTime), mbatch_total_cost, tff_cc_cost, (tff_cc_cost-regloss*mini_batch), regloss*mini_batch)
 

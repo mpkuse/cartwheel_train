@@ -7,6 +7,7 @@ import numpy as np
 import cv2
 import matplotlib.pyplot as plt
 import TerminalColors
+import code
 
 class CartWheelFlow:
     def __init__(self, trainable_on_device ):
@@ -580,7 +581,8 @@ class VGGFlow:
 ## construct the VGG descriptor at 5 layers
 class VGGDescriptor:
     def __init__(self):
-        x=0
+        xd=0
+
 
     # vggnet16. is_training is a placeholder boolean
     def vgg16( self, inputs, is_training ):
@@ -599,16 +601,27 @@ class VGGDescriptor:
             # tf.summary.histogram( 'xxxx_blk2', net )
             net = slim.max_pool2d(net, [2, 2], scope='pool2')
             net = slim.repeat(net, 1, slim.conv2d, 256, [3, 3], scope='conv3')
+            #TODO : Do not have a relu after last convolution (mentioned in the paper)
             # tf.summary.histogram( 'xxxx_blk3', net )
 
+            # net is now 16x60x80x256
 
             # MAX POOLING
             # TODO: To be replaced with NetVLAD-layer
-            net = slim.max_pool2d(net, kernel_size=[10, 10], stride=10, scope='pool3')
+
+            # ------ NetVLAD ------ #
+            net = self.netvlad_layer( net )
+            return net
+            # -------- ENDC ------- #
+
+
+            # ------ MaxPooling ----- #
+            net = slim.max_pool2d(net, kernel_size=[10, 10], stride=10, scope='pool3') #after maxpool, net=16x6x8x256
             sh = tf.shape(net)
             # print sh
             # print net
-            net = tf.reshape( net, [sh[0], sh[1]*sh[2]*sh[3] ])
+            net = tf.reshape( net, [sh[0], sh[1]*sh[2]*sh[3] ]) # retrns 16x12288
+            # -------- ENDC --------- #
 
 
 
@@ -641,3 +654,94 @@ class VGGDescriptor:
         tf_cost = tf.maximum( cost_, tf.constant(0.0), name='hinge_loss' )
 
         return tf_cost
+
+    ## NetVLAD layer
+    ## Given a 16x60x80x256 input volume, out a clustered (K=64) ie. 16x(K*256) tensor
+    def netvlad_layer( self, input_var ):
+
+        D = 256
+        K = 64
+        N = 60*80
+        b = 16
+
+
+        #init netVLAD layer's trainable_variables
+        with tf.variable_scope( 'netVLAD', reuse=None ):
+            vlad_w = tf.get_variable( 'vlad_w', [1,1,D,K], initializer=tf.contrib.layers.xavier_initializer_conv2d())# 1x1xDxK
+            vlad_b = tf.get_variable( 'vlad_b', [K], initializer=tf.contrib.layers.xavier_initializer()) #K
+            vlad_c = tf.get_variable( 'vlad_c', [K,D], initializer=tf.contrib.layers.xavier_initializer()) #KxD
+
+
+
+
+        ############# PART - I #################
+        # 1x1 convolutions. input dim=D , output dim=K
+        # after convolution, net must be 16x60x80xK
+        netvlad_conv = tf.nn.bias_add( tf.nn.conv2d( input_var, vlad_w, strides=[1, 1, 1, 1], padding='VALID', name='netvlad_conv' ), vlad_b )
+
+
+        # list all D-dim features (across images and across batches)
+        sh = tf.shape(netvlad_conv)
+        netvlad_conv_open = tf.reshape( netvlad_conv, [ sh[0]*sh[1]*sh[2], sh[3] ] ) #reshape. After reshape : (b*N)xK. N:=60x80
+
+
+        # make segments (batchwise)
+        e = []
+        for ie in range(b):
+            e.append( np.ones(N, dtype='int32')*ie )
+        e = np.hstack( e )
+        tf_e = tf.constant( e, name='segment_e' )
+
+
+
+        # softmax. output = (b*N) x K
+        sm = tf.nn.softmax( netvlad_conv_open, name='netvlad_softmax')
+
+        # code.interact( local=locals() )
+        #TODO: Write a function to count number of items in each cluster. It is basically just axis=1 summation of `sm`
+        # return sm, netvlad_conv, vlad_c #verified that this computation is correct.
+
+
+        ############# PART - II #################
+
+        #C : 64 X 256 ie. KxD
+        #X : b*60*80 x 256 ie. bHWxD
+        each_c = tf.unstack( vlad_c  ) #spits out 64 tensors. each of size 1x256
+
+
+        sh = tf.shape(input_var)
+        Xd = tf.reshape( input_var, [ sh[0]*sh[1]*sh[2], sh[3] ] ) #reshape. After reshape : (b*N)xK. N:=60x80
+
+        mean_substracted_Xd = []
+        seg_ops = []
+        Wsc = tf.unpack( sm , num=K, axis=1 )
+        for k in range( len(each_c) ): #foreach cluster centers
+            ff = Xd - each_c[k]
+
+            #TODO weightingmean; try :  matmul( diag(W) , x ) --> this is too expensive on memory. instead do repmat( w ) along cols and do point-wise mul of (X-c)
+            #Wsc = r^{th} col of sm
+            # ff = tf.matmul( tf.diag(Wsc),  tf.sub(Xd , each_c[k]) )
+            # Wsc = tf.slice( sm, [0,k], [b*N, 1 ], name='kth_col' )
+            # scaled_ff = tf.matmul( tf.diag(Wsc[k]) , ff )
+
+            member_wt =  tf.expand_dims(Wsc[k], -1)
+            ones_D = tf.constant( np.ones( (1,D), dtype='float32' ) )
+            tmp = tf.matmul( member_wt,  ones_D ) # vec * 1^t
+
+            scaled_ff = tf.multiply( tmp, ff ) # tmp .* (X - c_k)
+            # scaled_ff = ff
+
+
+            seg_ops.append( tf.segment_mean( scaled_ff, tf_e ) )
+
+
+        netvlad = tf.transpose( tf.stack( seg_ops ), perm=[1,0,2] )
+
+
+
+        code.interact( local=locals() )
+        return sm, vlad_c, netvlad
+
+    # does diag( w ) * x
+    def my_func(w, x):
+        q=0
