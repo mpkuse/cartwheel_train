@@ -1,6 +1,9 @@
 """ NetVLAD (cvpr2016) paper. Implementation.
         Basic idea is to learn a 16D representation. Cost function being the
         triplet ranking loss
+
+        Author  : Manohar Kuse <mpkuse@ust.hk>
+        Created : 12th Jan, 2017
 """
 
 
@@ -232,7 +235,8 @@ else:
 
 
 #
-# Setup NetVLAD Renderer - This renderer is custom made for NetVLAD training
+# Setup NetVLAD Renderer - This renderer is custom made for NetVLAD training.
+# It renderers 16 images at a time. 1st im is query image. Next nP images are positive samples. Next nN samples are negative samples
 app = NetVLADRenderer()
 
 
@@ -256,6 +260,7 @@ while True:
 
     mini_batch = 24
     mbatch_total_cost = 0
+    n_zero_tff_costs = 0 #Number of zero-costs in this batch
     # accumulate gradient
     for _ in range(mini_batch):
         im_batch, label_batch = app.step(16)
@@ -271,12 +276,14 @@ while True:
         # print tff_cost, _cost
         tff_cost, _grad_, tff_cc_cost, regloss = tensorflow_session.run( [tf_cost, accum_op, accum_cc_cost_op, regularization_loss], feed_dict=feed_dict)
         mbatch_total_cost = mbatch_total_cost + tff_cost
+        if tff_cost == 0:
+            n_zero_tff_costs = n_zero_tff_costs + 1
 
 
 
     _, summary_exec = tensorflow_session.run( [train_step,summary_op], feed_dict={tf_lr: get_learning_rate(tf_iteration, 0.0005) } )
 
-    print '%3d(%8.2fms) : cost=%8.3f cc_cost=%8.3f fit_loss=%8.3f reg_loss=%8.3f' %(tf_iteration, 1000.*(time.time() - startTime), mbatch_total_cost, tff_cc_cost, (tff_cc_cost-regloss*mini_batch), regloss*mini_batch)
+    print '%3d(%8.2fms) : cost=%8.3f cc_cost=%8.3f fit_loss=%8.3f reg_loss=%8.3f n_zero_costs=%d/%d' %(tf_iteration, 1000.*(time.time() - startTime), mbatch_total_cost, tff_cc_cost, (tff_cc_cost-regloss*mini_batch), regloss*mini_batch, n_zero_tff_costs, mini_batch)
 
 
     # Periodically Save Models

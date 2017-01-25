@@ -23,3 +23,7 @@ numpy<br/>
 pickle<br/>
 Queue<br/>
 time<br/>
+
+
+### Note
+You will need to have im_batch.pickle and label_batch.pickle

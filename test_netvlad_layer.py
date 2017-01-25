@@ -133,7 +133,7 @@ for i in range(16):
 
 
 
-tf_x = tf.placeholder( 'float', [16,60,80,256], name='conv_desc' )
+tf_x = tf.placeholder( 'float', [None,60,80,256], name='conv_desc' )
 is_training = tf.placeholder( tf.bool, [], name='is_training')
 
 

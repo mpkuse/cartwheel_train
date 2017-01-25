@@ -610,8 +610,8 @@ class VGGDescriptor:
             # TODO: To be replaced with NetVLAD-layer
 
             # ------ NetVLAD ------ #
-            net = self.netvlad_layer( net )
-            return net
+            # net = self.netvlad_layer( net )
+            # return net
             # -------- ENDC ------- #
 
 

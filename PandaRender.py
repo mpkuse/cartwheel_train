@@ -404,7 +404,7 @@ class TrainRenderer(ShowBase):
         self.mc_Y_min = -360
 
         self.mc_Z_max = 120
-        self.mc_Z_min = 35
+        self.mc_Z_min = 45
 
         self.mc_yaw_max = 60
         self.mc_yaw_min = -60
