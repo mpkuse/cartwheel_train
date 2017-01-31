@@ -29,10 +29,11 @@ tcolor = TerminalColors.bcolors()
 
 
 
-PARAM_MODEL = 'tf.logs/netvlad_w_gamma/model-10000'
+#TODO: Write a function to parse arguments
+PARAM_MODEL = 'tf.logs/netvlad_logsumexp_loss/model-17500'
 sl = PARAM_MODEL.rfind( '/' )
-PARAM_DB_PREFIX = PARAM_MODEL[:sl] + '/db1/'
-PARAM_BATCHSIZE = 10 #usually less than 16
+PARAM_DB_PREFIX = PARAM_MODEL[:sl] + '/db2/'
+PARAM_BATCHSIZE = 16 #usually less than 16
 PARAM_N_RENDERS = 100
 
 print tcolor.HEADER, 'PARAM_MODEL     : ', PARAM_MODEL, tcolor.ENDC
@@ -40,7 +41,6 @@ print tcolor.HEADER, 'PARAM_DB_PREFIX : ', PARAM_DB_PREFIX, tcolor.ENDC
 print tcolor.HEADER, 'PARAM_BATCHSIZE : ', PARAM_BATCHSIZE, tcolor.ENDC
 print tcolor.HEADER, 'PARAM_N_RENDERS : ', PARAM_N_RENDERS, tcolor.ENDC
 
-#TODO: Write a function to parse arguments
 
 
 def print_trainable_vars():
@@ -88,7 +88,7 @@ else:
 word_stack = []
 label_stack = []
 im_indx = 0
-for _ in range(PARAM_N_RENDERS):
+for itr in range(PARAM_N_RENDERS):
     startTime = time.time()
 
     batch_size = PARAM_BATCHSIZE
@@ -113,7 +113,7 @@ for _ in range(PARAM_N_RENDERS):
 
 
 
-    print 'iteration in %4.2f ms' %( (time.time()-startTime)*1000. )
+    print 'iteration %d in %4.2f ms' %( itr, (time.time()-startTime)*1000. )
 
 
 

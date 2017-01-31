@@ -288,7 +288,8 @@ class TrainRenderer(ShowBase):
 
                     c = c + 1
         else:
-            print 'q_imStack.qsize() > 150. Queue is filled, not retriving the rendered data'
+            if self.queue_warning:
+                print 'q_imStack.qsize() > 150. Queue is filled, not retriving the rendered data'
 
 
 
@@ -389,11 +390,13 @@ class TrainRenderer(ShowBase):
 
 
 
-    def __init__(self):
+    def __init__(self, queue_warning=True):
         ShowBase.__init__(self)
         self.taskMgr.add( self.renderNlearnTask, "renderNlearnTask" ) #changing camera poses
         self.taskMgr.add( self.putAxesTask, "putAxesTask" ) #draw co-ordinate axis
         self.taskMgr.add( self.putTrainingBox, "putTrainingBox" )
+
+        self.queue_warning = queue_warning #suppress the warning of queue full if this var is True
 
 
         # Set up training area. This is used in monte_carlo_sample() and putTrainingBox()

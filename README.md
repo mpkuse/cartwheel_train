@@ -12,6 +12,7 @@ TensorFlow - Deep learning toolkit <br/>
 PIL - Image Processing </br/>
 skimage - Image Processing <br/>
 cv2 - OpenCV <br/>
+annoy - Approximate Nearest Neighbour (ANN) <br/>
 
 ### You probably already have these
 argparse<br/>

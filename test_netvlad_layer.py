@@ -18,6 +18,30 @@ from CartWheelFlow import VGGDescriptor
 import TerminalColors
 tcolor = TerminalColors.bcolors()
 
+
+#
+# test-experiment : log-sum-exp cost function testing
+np.random.seed(1)
+word = np.random.rand(16, 6*8*256 ).astype( 'float32')
+tf_vlad_word = tf.constant( word )
+
+vgg_obj = VGGDescriptor()
+vgg_obj.soft_ploss( tf_vlad_word, 5,10, 10.)
+
+
+sess = tf.Session()
+sess.run(tf.global_variables_initializer())
+
+v = vgg_obj
+
+sp_q, sp_P, sp_N, tf_dis_q_P, tf_dis_q_N, rep_P,rep_N, pdis_diff, tff_cost = sess.run( [v.sp_q,v.sp_P,v.sp_N,   v.tf_dis_q_P,v.tf_dis_q_N,    v.rep_P,v.rep_N,   v.pdis_diff, v.cost] )
+
+
+
+quit()
+
+
+
 # #
 # # test-experiment tf.reshape
 # np.random.seed(1)

@@ -589,7 +589,7 @@ class VGGDescriptor:
         with slim.arg_scope([slim.conv2d, slim.fully_connected],\
                           activation_fn=tf.nn.relu,\
                           weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),\
-                          weights_regularizer=slim.l2_regularizer(0.0005),
+                          weights_regularizer=slim.l2_regularizer(0.01),
                           normalizer_fn=slim.batch_norm, \
                           normalizer_params={'is_training':is_training, 'decay': 0.9, 'updates_collections': None, 'scale': True}\
                           ):
@@ -600,8 +600,9 @@ class VGGDescriptor:
             net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], scope='conv2')
             # tf.summary.histogram( 'xxxx_blk2', net )
             net = slim.max_pool2d(net, [2, 2], scope='pool2')
-            net = slim.repeat(net, 1, slim.conv2d, 256, [3, 3], scope='conv3')
-            #TODO : Do not have a relu after last convolution (mentioned in the paper)
+
+            # net = slim.repeat(net, 1, slim.conv2d, 256, [3, 3], scope='conv3')    #with relu and with BN
+            net = slim.conv2d( net, 256, [3,3], activation_fn=None, scope='conv3' ) #w/o relu at the end. with BN. #TODO Possibly also remove BN from last one
             # tf.summary.histogram( 'xxxx_blk3', net )
 
             # net is now 16x60x80x256
@@ -616,11 +617,17 @@ class VGGDescriptor:
 
 
             # ------ MaxPooling ----- #
-            net = slim.max_pool2d(net, kernel_size=[10, 10], stride=10, scope='pool3') #after maxpool, net=16x6x8x256
+            net = slim.avg_pool2d(net, kernel_size=[10, 10], stride=10, scope='pool3') #after maxpool, net=16x6x8x256
+
+            #intra normalize
+            net = tf.nn.l2_normalize( net, dim=3, name='intra_normalization' )
+            # net = tf.mul( tf.constant(1000.), net )
+
             sh = tf.shape(net)
-            # print sh
-            # print net
             net = tf.reshape( net, [sh[0], sh[1]*sh[2]*sh[3] ]) # retrns 16x12288
+
+            #normalize
+            # net = tf.nn.l2_normalize( net, dim=1, name='l2_normalization' )
             # -------- ENDC --------- #
 
 
@@ -629,6 +636,7 @@ class VGGDescriptor:
             return net
 
 
+    ## Margined hinge loss. Distance is computed as euclidean distance.
     def svm_hinge_loss( self,tf_vlad_word, nP, nN, margin ):
         sp_q, sp_P, sp_N = tf.split_v( tf_vlad_word, [1,nP,nN], 0 )
         #sp_q=query; sp_P=definite_positives ; sp_N=definite_negatives
@@ -654,6 +662,48 @@ class VGGDescriptor:
         tf_cost = tf.maximum( cost_, tf.constant(0.0), name='hinge_loss' )
 
         return tf_cost
+
+
+    ## log-sum-exp loss for every pair of (d_P, d_N). d_P \in Positive samples. d_N in negative samples
+    def soft_ploss( self,tf_vlad_word, nP, nN, margin ):
+        sp_q, sp_P, sp_N = tf.split_v( tf_vlad_word, [1,nP,nN], 0 )
+        #sp_q=query; sp_P=definite_positives ; sp_N=definite_negatives
+        #q:1x16k;   P:5x16k;    N:10x16k
+
+
+        # distance between sp_q and each of sp_P
+        one_a = tf.ones( [nP,1], tf.float32 )
+        a_ = tf.sub( tf.matmul( one_a, sp_q ), sp_P ) #   (1 * q - P)**2  ==> (q-P)**2
+        tf_dis_q_P = tf.reduce_sum( tf.mul( a_, a_ ), axis=1 ) #row-wise norm (L2)
+
+
+        # distance between sp_q and each of sp_N
+        one_b = tf.ones( [nN,1], tf.float32 )
+        b_ = tf.sub( tf.matmul( one_b, sp_q ), sp_N ) #   (1 * q - P)**2  ==> (q-P)**2
+        tf_dis_q_N = tf.reduce_sum( tf.mul( b_, b_ ), axis=1 ) #row-wise norm (L2)
+
+        # form a 2D matrix for each pairwise distance difference
+        # repeat positive_dis by nN times. and negative distance by nP time. (yes this is correct...you want to do the reverse)
+        rep_P = tf.matmul( one_b, tf.expand_dims( tf_dis_q_P, 0 ) )
+        rep_N = tf.matmul( one_a, tf.expand_dims( tf_dis_q_N, 0 ) )
+
+        #pairwise difference of distances
+        pdis_diff = rep_P - tf.transpose( rep_N ) + tf.constant(margin, name='margin')
+
+        # logsumexp
+        cost = tf.reduce_logsumexp( pdis_diff )
+
+        # self.cost = cost
+        self.pdis_diff = pdis_diff
+        # self.rep_P = rep_P
+        # self.rep_N = rep_N
+        # self.sp_q = sp_q
+        # self.sp_P = sp_P
+        # self.sp_N = sp_N
+        self.tf_dis_q_P = tf_dis_q_P
+        self.tf_dis_q_N = tf_dis_q_N
+        return cost
+
 
     ## NetVLAD layer
     ## Given a 16x60x80x256 input volume, out a clustered (K=64) ie. 16x(K*256) tensor

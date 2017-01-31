@@ -146,8 +146,9 @@ tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
 
 nP = 5
 nN = 10
-margin = 0.1
-fitting_loss = vgg_obj.svm_hinge_loss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
+margin = 10.0
+# fitting_loss = vgg_obj.svm_hinge_loss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
+fitting_loss = vgg_obj.soft_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
 regularization_loss = tf.add_n( slim.losses.get_regularization_losses() )
 tf_cost = regularization_loss + fitting_loss
 
@@ -169,6 +170,7 @@ trainable_vars = tf.trainable_variables()
 
 
 # borrowed from https://github.com/tensorflow/tensorflow/issues/3994 (issue 3994 of tensorflow)
+# ops to accumulate gradients
 accum_vars = [tf.Variable( tf.zeros_like(tv.initialized_value()), name=tv.name.replace( '/', '__' ).replace(':', '__'), trainable=False ) for tv in trainable_vars ] #create new set of variables to accumulate gradients
 zero_op = [ tv.assign( tf.zeros_like(tv) ) for tv in accum_vars  ] #set above var zeros
 grad_var = tensorflow_opt.compute_gradients( tf_cost, trainable_vars )
@@ -176,15 +178,27 @@ accum_op = [ accum_vars[i].assign_add(gv[0]) for i,gv in enumerate(grad_var)  ]
 train_step = tensorflow_opt.apply_gradients( [(accum_vars[i], gv[1])  for i,gv in enumerate(grad_var)] )
 
 # Cummulate total cost
-cummulative_cost = tf.Variable( 0, dtype=tf.float32, trainable=False )
-zero_cc_cost_op = cummulative_cost.assign( tf.zeros_like(cummulative_cost) )
-accum_cc_cost_op = cummulative_cost.assign_add( tf_cost )
+cumel_tf_cost = tf.Variable( 0, dtype=tf.float32, trainable=False )
+zero_tf_cost = cumel_tf_cost.assign( tf.zeros_like(cumel_tf_cost) )
+accum_tf_cost = cumel_tf_cost.assign_add( tf_cost )
+
+# Cummulate regularization loss
+cumel_reg_loss  = tf.Variable( 0, dtype=tf.float32, trainable=False )
+zero_reg_loss  = cumel_reg_loss.assign( tf.zeros_like(cumel_reg_loss ) )
+accum_reg_loss  = cumel_reg_loss.assign_add( regularization_loss )
+
+# Cummulate fitting loss
+cumel_fit_loss = tf.Variable( 0, dtype=tf.float32, trainable=False )
+zero_fit_loss  = cumel_fit_loss.assign( tf.zeros_like(cumel_fit_loss) )
+accum_fit_loss  = cumel_fit_loss.assign_add( fitting_loss )
 
 
 
 
 # Summary
-tf.summary.scalar( 'cc_cost', cummulative_cost )
+tf.summary.scalar( 'cumel_tf_cost', cumel_tf_cost )
+tf.summary.scalar( 'cumel_fit_loss', cumel_fit_loss )
+tf.summary.scalar( 'cumel_reg_loss', cumel_reg_loss )
 tf.summary.scalar( 'lr', tf_lr )
 # list trainable variables
 for vv in trainable_vars:
@@ -238,7 +252,9 @@ else:
 # Setup NetVLAD Renderer - This renderer is custom made for NetVLAD training.
 # It renderers 16 images at a time. 1st im is query image. Next nP images are positive samples. Next nN samples are negative samples
 app = NetVLADRenderer()
-
+#TODO: codeup a while loop - dry iterations (non training). or may be have a separate
+# script for dry iterations with netvlad renderer. this script will be
+# very similar to make_db_netvlad,
 
 #
 # Iterations
@@ -256,11 +272,11 @@ while True:
     # print "\n"
     # time.sleep(5)
 
-    tensorflow_session.run([zero_op,zero_cc_cost_op]) #set gradient_cummulator and cost_cummulator to zero
+    tensorflow_session.run([zero_op,zero_tf_cost,zero_fit_loss,zero_reg_loss]) #set gradient_cummulator and cost_cummulator to zero
 
     mini_batch = 24
-    mbatch_total_cost = 0
     n_zero_tff_costs = 0 #Number of zero-costs in this batch
+    veri_total = 0.0; veri_fit=0.0; veri_reg=0.0
     # accumulate gradient
     for _ in range(mini_batch):
         im_batch, label_batch = app.step(16)
@@ -274,16 +290,25 @@ while True:
         # tff_cost, tff_word, _grad_ = tensorflow_session.run( [tf_cost, tf_vlad_word, accum_op], feed_dict=feed_dict)
         # _dis_q_P, _dis_q_N, _cost = verify_cost( tff_word, nP, nN, margin )
         # print tff_cost, _cost
-        tff_cost, _grad_, tff_cc_cost, regloss = tensorflow_session.run( [tf_cost, accum_op, accum_cc_cost_op, regularization_loss], feed_dict=feed_dict)
-        mbatch_total_cost = mbatch_total_cost + tff_cost
-        if tff_cost == 0:
+        # tff_cost, _grad_, tff_cc_cost, regloss = tensorflow_session.run( [tf_cost, accum_op, accum_cc_cost_op, regularization_loss], feed_dict=feed_dict)
+        tff_cost, tff_fit, tff_regloss, tff_cu_cost, tff_cu_fit, tff_cu_regloss, _grad_ = tensorflow_session.run( [tf_cost, fitting_loss, regularization_loss,  accum_tf_cost, accum_fit_loss, accum_reg_loss,  accum_op ], feed_dict=feed_dict )
+        veri_total += tff_cost
+        veri_fit   += tff_fit
+        veri_reg   += tff_regloss
+
+        if tff_fit < 4:
             n_zero_tff_costs = n_zero_tff_costs + 1
 
+        print '%4.3f' %(tff_fit),
+    print
 
+    cur_lr = get_learning_rate(tf_iteration, 0.002)
+    _, summary_exec = tensorflow_session.run( [train_step,summary_op], feed_dict={tf_lr: cur_lr } )
 
-    _, summary_exec = tensorflow_session.run( [train_step,summary_op], feed_dict={tf_lr: get_learning_rate(tf_iteration, 0.0005) } )
-
-    print '%3d(%8.2fms) : cost=%8.3f cc_cost=%8.3f fit_loss=%8.3f reg_loss=%8.3f n_zero_costs=%d/%d' %(tf_iteration, 1000.*(time.time() - startTime), mbatch_total_cost, tff_cc_cost, (tff_cc_cost-regloss*mini_batch), regloss*mini_batch, n_zero_tff_costs, mini_batch)
+    # print '%3d(%8.2fms) : cost=%-8.3f cc_cost=%-8.3f fit_loss=%-8.6f reg_loss=%-8.3f n_zero_costs=%d/%d' %(tf_iteration, 1000.*(time.time() - startTime), mbatch_total_cost, tff_cc_cost, (tff_cc_cost-regloss*mini_batch), regloss*mini_batch, n_zero_tff_costs, mini_batch)
+    elpTime = 1000.*(time.time() - startTime)
+    print '%3d(%8.2fms) : total=%-8.3f fit_loss=%-8.3f reg_loss=%-8.3f n_zeros=%d/%d) ' %(tf_iteration,elpTime, tff_cu_cost, tff_cu_fit, tff_cu_regloss, n_zero_tff_costs, mini_batch)
+    # print '%3d(%8.2fms) : cost(t/f/r) : (%8.2f/%8.2f/%8.2f) ' %(tf_iteration,elpTime, veri_total, veri_fit, veri_reg)
 
 
     # Periodically Save Models
