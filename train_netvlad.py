@@ -284,8 +284,10 @@ while True:
             im_batch, label_batch = app.step(16)
 
 
+        #vgg_obj.initial_t is for the loopy-tensorflow (tf.while_loop)
         feed_dict = {tf_x : im_batch,\
-                     is_training:True
+                     is_training:True,\
+                     vgg_obj.initial_t: 0
                     }
         # tff_cost, tff_word, _grad_ = tensorflow_session.run( [tf_cost, tf_vlad_word, accum_op], feed_dict=feed_dict)
         # _dis_q_P, _dis_q_N, _cost = verify_cost( tff_word, nP, nN, margin )
@@ -299,7 +301,7 @@ while True:
         if tff_fit < 4:
             n_zero_tff_costs = n_zero_tff_costs + 1
 
-        print '%4.3f' %(tff_fit),
+        print '%4.3E' %(tff_fit),
     print
 
     cur_lr = get_learning_rate(tf_iteration, 0.002)
@@ -307,7 +309,7 @@ while True:
 
     # print '%3d(%8.2fms) : cost=%-8.3f cc_cost=%-8.3f fit_loss=%-8.6f reg_loss=%-8.3f n_zero_costs=%d/%d' %(tf_iteration, 1000.*(time.time() - startTime), mbatch_total_cost, tff_cc_cost, (tff_cc_cost-regloss*mini_batch), regloss*mini_batch, n_zero_tff_costs, mini_batch)
     elpTime = 1000.*(time.time() - startTime)
-    print '%3d(%8.2fms) : total=%-8.3f fit_loss=%-8.3f reg_loss=%-8.3f n_zeros=%d/%d) ' %(tf_iteration,elpTime, tff_cu_cost, tff_cu_fit, tff_cu_regloss, n_zero_tff_costs, mini_batch)
+    print '%3d(%8.2fms) : total=%-8.3E fit_loss=%-8.3E reg_loss=%-8.3f n_zeros=%d/%d) ' %(tf_iteration,elpTime, tff_cu_cost, tff_cu_fit, tff_cu_regloss, n_zero_tff_costs, mini_batch)
     # print '%3d(%8.2fms) : cost(t/f/r) : (%8.2f/%8.2f/%8.2f) ' %(tf_iteration,elpTime, veri_total, veri_fit, veri_reg)
 
 

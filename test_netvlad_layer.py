@@ -19,26 +19,24 @@ import TerminalColors
 tcolor = TerminalColors.bcolors()
 
 
+# #
+# # test-experiment : log-sum-exp cost function testing
+# np.random.seed(1)
+# word = np.random.rand(16, 6*8*256 ).astype( 'float32')
+# tf_vlad_word = tf.constant( word )
 #
-# test-experiment : log-sum-exp cost function testing
-np.random.seed(1)
-word = np.random.rand(16, 6*8*256 ).astype( 'float32')
-tf_vlad_word = tf.constant( word )
-
-vgg_obj = VGGDescriptor()
-vgg_obj.soft_ploss( tf_vlad_word, 5,10, 10.)
-
-
-sess = tf.Session()
-sess.run(tf.global_variables_initializer())
-
-v = vgg_obj
-
-sp_q, sp_P, sp_N, tf_dis_q_P, tf_dis_q_N, rep_P,rep_N, pdis_diff, tff_cost = sess.run( [v.sp_q,v.sp_P,v.sp_N,   v.tf_dis_q_P,v.tf_dis_q_N,    v.rep_P,v.rep_N,   v.pdis_diff, v.cost] )
-
-
-
-quit()
+# vgg_obj = VGGDescriptor()
+# vgg_obj.soft_ploss( tf_vlad_word, 5,10, 10.)
+#
+#
+# sess = tf.Session()
+# sess.run(tf.global_variables_initializer())
+#
+# v = vgg_obj
+#
+# sp_q, sp_P, sp_N, tf_dis_q_P, tf_dis_q_N, rep_P,rep_N, pdis_diff, tff_cost = sess.run( [v.sp_q,v.sp_P,v.sp_N,   v.tf_dis_q_P,v.tf_dis_q_N,    v.rep_P,v.rep_N,   v.pdis_diff, v.cost] )
+#
+# quit()
 
 
 
@@ -63,28 +61,28 @@ quit()
 # quit()
 
 
-#
-# # test-experiment : tf.segment_mean
-# # make segments (batchwise)
-# np.random.seed(1)
-# e = []
-# for ie in range(2):
-#     e.append( np.ones(5, dtype='int32')*ie )
-# e = np.hstack( e )
-# tf_e = tf.constant( e, name='segment_e' )
-#
-# U = np.random.randint( 0, 10, (10,3) ).astype('float32')
-# tf_U = tf.constant( U )
-#
-# seg_op = tf.segment_mean( tf_U, tf_e )
-#
-# sess = tf.Session()
-# sess.run(tf.global_variables_initializer())
-#
-# tff_seg = sess.run( seg_op )
-# print tff_seg
-#
-# quit()
+
+# test-experiment : tf.segment_mean
+# make segments (batchwise)
+np.random.seed(1)
+e = []
+for ie in range(2):
+    e.append( np.ones(5, dtype='int32')*ie )
+e = np.hstack( e )
+tf_e = tf.constant( e, name='segment_e' )
+
+U = np.random.randint( 0, 10, (10,3) ).astype('float32')
+tf_U = tf.constant( U )
+
+seg_op = tf.segment_mean( tf_U, tf_e )
+
+sess = tf.Session()
+sess.run(tf.global_variables_initializer())
+
+tff_seg = sess.run( seg_op )
+print tff_seg
+
+quit()
 
 
 # # test-experiment : Slice and diag
@@ -146,7 +144,6 @@ def verify_vlad( c, Xd, sm ):
     return veri_netvlad
 
 
-    code.interact( local=locals() )
 
 
 np.random.seed(1)
@@ -163,14 +160,14 @@ is_training = tf.placeholder( tf.bool, [], name='is_training')
 
 vgg_obj = VGGDescriptor()
 # tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
-tf_sm, vlad_c, netvlad = vgg_obj.netvlad_layer( tf_x )
+netvlad = vgg_obj.netvlad_layer( tf_x )
 
 sess = tf.Session()
 sess.run(tf.global_variables_initializer())
 
-tff_sm, tff_vlad_c, tff_netvlad = sess.run( [tf_sm, vlad_c, netvlad],  feed_dict={tf_x:XX})
+tff_netvlad = sess.run( netvlad,  feed_dict={tf_x:XX})
 
 # veri_sm = verify_membership_mat( tff_netvlad_conv )
-veri_netvlad = verify_vlad( tff_vlad_c, XX, tff_sm )
+# veri_netvlad = verify_vlad( tff_vlad_c, XX, tff_sm )
 
 quit()

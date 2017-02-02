@@ -24,8 +24,22 @@ from CartWheelFlow import VGGDescriptor
 import TerminalColors
 tcolor = TerminalColors.bcolors()
 
+## Given input to the vlad layer after wx+b (after conv), ie 16x60x80x64
+## computes the softmax which denote cluster membership
+def verify_membership_mat( C ):
+    # print 'C.shape : ', C.shape # 16 x 60 x 80 x 64
+    C_r = np.reshape( C, [16*60*80, 64 ] )
+
+    #softmax computation for each row
+    sm = np.zeros( C_r.shape )
+    mmax = np.max( C_r, axis=1 )
+    for i in range( sm.shape[0] ):
+        sm[i] = np.exp( C_r[i,:] - mmax[i] ) / np.sum( np.exp( C_r[i,:] - mmax[i] ) )
+
+    return sm
+
 #TODO: parse_args for this var
-PARAM_model_restore = 'tf.logs/netvlad_logsumexp_loss/model-17500'
+PARAM_model_restore = None#'tf.logs/netvlad_logsumexp_loss/model-17500'
 
 #
 # Tensorflow
@@ -50,8 +64,12 @@ print '# of trainable_vars : ', len(tf.trainable_variables())
 # restore saved model
 tensorflow_session = tf.Session()
 tensorflow_saver = tf.train.Saver()
-print tcolor.OKGREEN,'Restore model from : ', PARAM_model_restore, tcolor.ENDC
-tensorflow_saver.restore( tensorflow_session, PARAM_model_restore )
+if PARAM_model_restore == None:
+    print tcolor.OKGREEN,'global_variables_initializer() : xavier', tcolor.ENDC
+    tensorflow_session.run( tf.global_variables_initializer() )
+else:
+    print tcolor.OKGREEN,'Restore model from : ', PARAM_model_restore, tcolor.ENDC
+    tensorflow_saver.restore( tensorflow_session, PARAM_model_restore )
 
 
 #
@@ -66,16 +84,29 @@ while True:
         im_batch, label_batch = app.step(16)
 
 
+    s = vgg_obj
     feed_dict = {tf_x : im_batch,\
-                 is_training:False
+                 is_training:True,\
+                 s.initial_t: 0,\
                 }
+
+    proc = [s.nl_Xd, s.nl_c, s.nl_sm, s.nl_outputs]
+    nl_Xd, nl_c, nl_sm, nl_outputs = tensorflow_session.run( proc, feed_dict=feed_dict )
+
+    kk = 23
+    xxx = np.multiply( nl_sm[:,kk:kk+1] * np.ones((1,256)), nl_Xd - nl_c[kk,:] )
+    # xxx = nl_Xd - nl_c[kk,:]
+    xxx_s = xxx[0:4800,:].sum( axis=0 )
+    print 'max-err:', (xxx_s - nl_outputs[0,kk,:]).max()
+
+
 
     tff_cost, tff_dis_q_P, tff_dis_q_N, pdis_diff = tensorflow_session.run( [fitting_loss, vgg_obj.tf_dis_q_P, vgg_obj.tf_dis_q_N, vgg_obj.pdis_diff], feed_dict=feed_dict )
     np.set_printoptions( precision=3 )
-    print tff_cost
-    print tff_dis_q_P
-    print tff_dis_q_N
-    print pdis_diff
+    print 'tff_cost:', tff_cost
+    print 'tff_dis_q_P:', tff_dis_q_P
+    print 'tff_dis_q_N:',tff_dis_q_N
+    print 'pdis_diff:', pdis_diff
     code.interact( local=locals() )
 
 

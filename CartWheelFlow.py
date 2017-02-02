@@ -581,7 +581,12 @@ class VGGFlow:
 ## construct the VGG descriptor at 5 layers
 class VGGDescriptor:
     def __init__(self):
-        xd=0
+        xdd = 0
+        self._D = 256
+        self._K = 32
+        self._N = 60*80
+        self._b = 16
+
 
 
     # vggnet16. is_training is a placeholder boolean
@@ -589,7 +594,7 @@ class VGGDescriptor:
         with slim.arg_scope([slim.conv2d, slim.fully_connected],\
                           activation_fn=tf.nn.relu,\
                           weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),\
-                          weights_regularizer=slim.l2_regularizer(0.01),
+                          weights_regularizer=slim.l2_regularizer(1.01),
                           normalizer_fn=slim.batch_norm, \
                           normalizer_params={'is_training':is_training, 'decay': 0.9, 'updates_collections': None, 'scale': True}\
                           ):
@@ -611,29 +616,28 @@ class VGGDescriptor:
             # TODO: To be replaced with NetVLAD-layer
 
             # ------ NetVLAD ------ #
-            # net = self.netvlad_layer( net )
-            # return net
+            net = self.netvlad_layer( net )
+            sh = tf.shape(net)
+            net = tf.reshape( net, [sh[0], sh[1]*sh[2] ]) # retrns 16x64*256
+            return net
             # -------- ENDC ------- #
 
 
-            # ------ MaxPooling ----- #
-            net = slim.avg_pool2d(net, kernel_size=[10, 10], stride=10, scope='pool3') #after maxpool, net=16x6x8x256
+            # # ------ MaxPooling ----- #
+            # net = slim.avg_pool2d(net, kernel_size=[10, 10], stride=10, scope='pool3') #after maxpool, net=16x6x8x256
+            #
+            # #intra normalize
+            # net = tf.nn.l2_normalize( net, dim=3, name='intra_normalization' )
+            # # net = tf.mul( tf.constant(1000.), net )
+            #
+            # sh = tf.shape(net)
+            # net = tf.reshape( net, [sh[0], sh[1]*sh[2]*sh[3] ]) # retrns 16x12288
+            #
+            # #normalize
+            # # net = tf.nn.l2_normalize( net, dim=1, name='l2_normalization' )
+            # return net
+            # # -------- ENDC --------- #
 
-            #intra normalize
-            net = tf.nn.l2_normalize( net, dim=3, name='intra_normalization' )
-            # net = tf.mul( tf.constant(1000.), net )
-
-            sh = tf.shape(net)
-            net = tf.reshape( net, [sh[0], sh[1]*sh[2]*sh[3] ]) # retrns 16x12288
-
-            #normalize
-            # net = tf.nn.l2_normalize( net, dim=1, name='l2_normalization' )
-            # -------- ENDC --------- #
-
-
-
-
-            return net
 
 
     ## Margined hinge loss. Distance is computed as euclidean distance.
@@ -705,14 +709,50 @@ class VGGDescriptor:
         return cost
 
 
+
+
+    def should_continue(self,t, *args):
+        return t<self.time_steps
+
+    def iteration(self,t,outputs_):
+        D = self._D
+        K = self._K
+        N = self._N
+        b = self._b
+        #t^{th} cluster center. extract t^{th} row
+        c_t = tf.slice( self.nl_c, [t,0], [1,D])
+
+        #membership of each point wrt to t^{th} cluster. exract t^{th} col of sm
+        sm_t = tf.slice( self.nl_sm, [0,t], [b*N,1] )
+
+
+        diff = self.nl_Xd - c_t
+        # ones_D = tf.constant( np.ones( (1,D), dtype='float32' ) )
+        # diff_scaled = tf.multiply( diff, tf.matmul( sm_t, ones_D) )
+        # tf.multiply has broadcasting, see test_tf_multiply.py
+        diff_scaled = tf.multiply( sm_t, diff )
+
+
+        vec_of_1_256 = []
+        for bi in range(b):
+            diff_slice = tf.slice( diff_scaled, [bi*N,0], [N, D] )
+            vec_of_1_256.append( tf.reduce_sum( diff_slice, axis=0 ) )
+
+
+
+        # outputs_ = outputs_.write(t, tf.segment_sum( diff, self.tf_e))
+        outputs_ = outputs_.write( t, tf.stack(vec_of_1_256) )
+        return t+1,outputs_
+
+
     ## NetVLAD layer
     ## Given a 16x60x80x256 input volume, out a clustered (K=64) ie. 16x(K*256) tensor
     def netvlad_layer( self, input_var ):
 
-        D = 256
-        K = 64
-        N = 60*80
-        b = 16
+        D = self._D
+        K = self._K
+        N = self._N
+        b = self._b
 
 
         #init netVLAD layer's trainable_variables
@@ -740,58 +780,64 @@ class VGGDescriptor:
         for ie in range(b):
             e.append( np.ones(N, dtype='int32')*ie )
         e = np.hstack( e )
-        tf_e = tf.constant( e, name='segment_e' )
+        self.const_e = e
+        # self.seg_e = tf.placeholder( dtype='int32', shape=(None) )
+        self.tf_e = tf.constant( e )
 
 
 
         # softmax. output = (b*N) x K
         sm = tf.nn.softmax( netvlad_conv_open, name='netvlad_softmax')
+        self.nl_netvlad_conv = netvlad_conv
+        self.nl_input = input_var
+        self.nl_sm = sm
+        self.nl_c = vlad_c
 
-        # code.interact( local=locals() )
+
+
         #TODO: Write a function to count number of items in each cluster. It is basically just axis=1 summation of `sm`
         # return sm, netvlad_conv, vlad_c #verified that this computation is correct.
 
-
-        ############# PART - II #################
-
-        #C : 64 X 256 ie. KxD
-        #X : b*60*80 x 256 ie. bHWxD
-        each_c = tf.unstack( vlad_c  ) #spits out 64 tensors. each of size 1x256
-
-
+        ############## Tensorflow Loopy ################
         sh = tf.shape(input_var)
         Xd = tf.reshape( input_var, [ sh[0]*sh[1]*sh[2], sh[3] ] ) #reshape. After reshape : (b*N)xK. N:=60x80
+        self.nl_Xd = Xd
+        self.time_steps = tf.shape( sm )[1]
+        initial_outputs = tf.TensorArray(dtype=tf.float32, size=self.time_steps)
+        self.initial_t = tf.placeholder( dtype='int32')
 
-        mean_substracted_Xd = []
-        seg_ops = []
-        Wsc = tf.unpack( sm , num=K, axis=1 )
-        for k in range( len(each_c) ): #foreach cluster centers
-            ff = Xd - each_c[k]
-
-            #TODO weightingmean; try :  matmul( diag(W) , x ) --> this is too expensive on memory. instead do repmat( w ) along cols and do point-wise mul of (X-c)
-            #Wsc = r^{th} col of sm
-            # ff = tf.matmul( tf.diag(Wsc),  tf.sub(Xd , each_c[k]) )
-            # Wsc = tf.slice( sm, [0,k], [b*N, 1 ], name='kth_col' )
-            # scaled_ff = tf.matmul( tf.diag(Wsc[k]) , ff )
-
-            member_wt =  tf.expand_dims(Wsc[k], -1)
-            ones_D = tf.constant( np.ones( (1,D), dtype='float32' ) )
-            tmp = tf.matmul( member_wt,  ones_D ) # vec * 1^t
-
-            scaled_ff = tf.multiply( tmp, ff ) # tmp .* (X - c_k)
-            # scaled_ff = ff
+        t, outputs = tf.while_loop( self.should_continue, self.iteration, [self.initial_t,initial_outputs] )
+        outputs = tf.transpose( outputs.pack(), [1,0,2] )
+        self.nl_outputs = outputs
+        return outputs
 
 
-            seg_ops.append( tf.segment_mean( scaled_ff, tf_e ) )
-
-
-        netvlad = tf.transpose( tf.stack( seg_ops ), perm=[1,0,2] )
-
-
-
-        code.interact( local=locals() )
-        return sm, vlad_c, netvlad
-
-    # does diag( w ) * x
-    def my_func(w, x):
-        q=0
+        # ############# PART - II #################
+        #
+        # #C : 64 X 256 ie. KxD
+        # #X : b*60*80 x 256 ie. bHWxD
+        # each_c = tf.unstack( vlad_c, name='unstack_c'  ) #spits out 64 tensors. each of size 1x256
+        # each_sm = tf.unstack( sm, num=K , axis=1, name='unstack_sm')
+        # print len(each_sm)
+        # code.interact( local=locals() )
+        #
+        #
+        #
+        #
+        # #tmp
+        # self.nl_summed = []
+        # ones_D = tf.constant( np.ones( (1,D), dtype='float32' ) )
+        # for k in range(5): #range( len(each_c) ):
+        #     ff = Xd - each_c[k] #76800 x 256
+        #     # sm_k = tf.expand_dims( each_sm[k], -1) #76800 x 1
+        #
+        #     # ff_scaled = tf.multiply( ff, tf.matmul( sm_k, ones_D) )
+        #     ff_scaled = ff
+        #
+        #     summed = tf.segment_sum( ff_scaled, tf_e )
+        #
+        #     self.nl_summed.append( summed )
+        #
+        # self.nl_stacked = tf.pack( self.nl_summed )
+        #
+        # return summed
