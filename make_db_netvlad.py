@@ -17,6 +17,7 @@ import pickle
 
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
+from tensorflow.contrib.tensorboard.plugins import projector #for t-SNE visualization
 
 from PandaRender import TrainRenderer
 from CartWheelFlow import VGGDescriptor
@@ -87,6 +88,7 @@ else:
 
 word_stack = []
 label_stack = []
+thumbnail_stack = []
 im_indx = 0
 for itr in range(PARAM_N_RENDERS):
     startTime = time.time()
@@ -109,9 +111,11 @@ for itr in range(PARAM_N_RENDERS):
 
     # Write a) Im, b) vlad vec, c) labels
     for j in range(batch_size):
-        fname = PARAM_DB_PREFIX+'/im/'+str(im_indx)+'.jpg'
-        # print 'Write : ', fname
-        cv2.imwrite( fname, cv2.cvtColor( im_batch[j,:,:,:].astype('uint8'), cv2.COLOR_RGB2BGR  ) )
+        fname = PARAM_DB_PREFIX+'im/'+str(im_indx)+'.jpg'
+        print 'Write : ', fname
+        db_image = cv2.cvtColor( im_batch[j,:,:,:].astype('uint8'), cv2.COLOR_RGB2BGR  )
+        thumbnail_stack.append( cv2.resize( db_image, (0,0), fx=0.2, fy=0.2 ) )
+        cv2.imwrite( fname, db_image )
         im_indx = im_indx + 1
     word_stack.append( tff_vlad_word )
     label_stack.append( label_batch )
@@ -119,6 +123,55 @@ for itr in range(PARAM_N_RENDERS):
 
 
     print 'iteration %d in %4.2f ms' %( itr, (time.time()-startTime)*1000. )
+
+def factors(n):
+    return [i for i in range(1, int(np.sqrt(n+1))) if not n%i]
+
+def makeSprite( thumbnail_stack ):
+    n = len(thumbnail_stack)
+    r, c, _ = thumbnail_stack[0].shape
+
+    print 'Total %d images in stack, each of dim (%d,%d)' %(n,r,c)
+
+    #make size of sprite is 8192x8192
+    print 'Total Images that can fit in the spirit : ', np.round( (8192*8192)/(r*c) )
+
+    v = []
+    nrow = factors(n)[-1]
+    print  'number of images per row : ', nrow
+    thumbnail_sp = np.array_split( thumbnail_stack, nrow )
+    for sp in thumbnail_sp:
+        sprite_row = np.concatenate(sp, axis=1 )
+        print sprite_row.shape
+        v.append( sprite_row )
+
+    sprite = np.concatenate(v, axis=0 )
+    print 'sprite dim : ', sprite.shape
+    return sprite
+
+
+
+
+#
+# Store embeddings for visualization with t-SNE
+word_stack_embeding  = np.vstack( word_stack )
+sprite_image = makeSprite(thumbnail_stack) #np.concatenate(thumbnail_stack, axis=1 )
+cv2.imwrite( os.path.join( PARAM_DB_PREFIX, 'SPRITE.png'), sprite_image )
+tf_embedding = tf.Variable( word_stack_embeding, name='netvlad_descriptors' )
+tensorflow_session.run( tf.global_variables_initializer() )
+
+embeding_saver = tf.train.Saver( [tf_embedding] )
+summary_writer = tf.summary.FileWriter( PARAM_DB_PREFIX, tensorflow_session.graph )
+config = projector.ProjectorConfig()
+embedding = config.embeddings.add()
+embedding.tensor_name=tf_embedding.name
+embedding.sprite.image_path =  os.path.join( PARAM_DB_PREFIX, 'SPRITE.png')
+im_h, im_w, _ = thumbnail_stack[0].shape
+embedding.sprite.single_image_dim.extend([im_w,im_h]) #note that it asks col-count and then row-count
+projector.visualize_embeddings( summary_writer, config)
+embeding_saver.save( tensorflow_session, os.path.join( PARAM_DB_PREFIX, "embeding.ckpt" ) )
+
+# code.interact(local=locals())
 
 
 
