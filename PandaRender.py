@@ -359,6 +359,7 @@ class TrainRenderer(ShowBase):
                 label_batch[i,3] =  copy.deepcopy( y[3] )
 
         else:
+            return None, None
             f_im = 'im_batch.pickle'
             f_lab = 'label_batch.pickle'
             print 'Loading : ', f_im, f_lab
@@ -724,6 +725,7 @@ class TestRenderer(ShowBase):
         #imX = im.astype('float32')/255. - .5 # TODO: have a mean image
         #imX = (im.astype('float32') - 128.0) /128.
         imX = im.astype('float32')  #- self.meanImage
+
 
         # Put imX into the queue
         # do not queue up if queue size begin to exceed 150
@@ -1138,6 +1140,10 @@ class NetVLADRenderer(ShowBase):
                     #imX = im.astype('float32')/255. - .5 # TODO: have a mean image
                     #imX = (im.astype('float32') - 128.0) /128.
                     imX = im.astype('float32')  #- self.meanImage
+
+                    # print 'Noise Added to renderedIm'
+                    # imX =  imX + 10.*np.random.randn( imX.shape[0], imX.shape[1], imX.shape[2] )
+
 
                     ## Put imX into the queue
                     # do not queue up if queue size begin to exceed 150

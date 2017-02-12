@@ -39,7 +39,7 @@ def verify_membership_mat( C ):
     return sm
 
 #TODO: parse_args for this var
-PARAM_model_restore = None#'tf.logs/netvlad_logsumexp_loss/model-17500'
+PARAM_model_restore = 'tf.logs/netvlad_hinged_logsumexploss_intranorm/model-4000' #None
 
 #
 # Tensorflow
@@ -52,9 +52,10 @@ tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
 
 nP = 5
 nN = 10
-margin = 10.0
+margin = 0.2#10.0
 # fitting_loss = vgg_obj.svm_hinge_loss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
-fitting_loss = vgg_obj.soft_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
+# fitting_loss = vgg_obj.soft_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
+fitting_loss = vgg_obj.soft_angular_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
 
 for vv in tf.trainable_variables():
     print 'name=', vv.name, 'shape=' ,vv.get_shape().as_list()
@@ -86,27 +87,29 @@ while True:
 
     s = vgg_obj
     feed_dict = {tf_x : im_batch,\
-                 is_training:True,\
+                 is_training:False,\
                  s.initial_t: 0,\
                 }
 
-    proc = [s.nl_Xd, s.nl_c, s.nl_sm, s.nl_outputs]
-    nl_Xd, nl_c, nl_sm, nl_outputs = tensorflow_session.run( proc, feed_dict=feed_dict )
+    proc = [tf_vlad_word, s.sp_q, s.sp_P, s.sp_N, s.dot_q_P, s.dot_q_N, s.psimilarity_diff, fitting_loss]
+    tff_vlad_word, tff_sp_q, tff_sp_P, tff_sp_N, tff_dot_q_P, tff_dot_q_N, tff_psimilarity_diff, tff_cost = tensorflow_session.run( proc, feed_dict=feed_dict )
 
-    kk = 23
-    xxx = np.multiply( nl_sm[:,kk:kk+1] * np.ones((1,256)), nl_Xd - nl_c[kk,:] )
-    # xxx = nl_Xd - nl_c[kk,:]
-    xxx_s = xxx[0:4800,:].sum( axis=0 )
-    print 'max-err:', (xxx_s - nl_outputs[0,kk,:]).max()
+    print 'cost : ', tff_cost
+
+    # kk = 23
+    # xxx = np.multiply( nl_sm[:,kk:kk+1] * np.ones((1,256)), nl_Xd - nl_c[kk,:] )
+    # # xxx = nl_Xd - nl_c[kk,:]
+    # xxx_s = xxx[0:4800,:].sum( axis=0 )
+    # print 'max-err:', (xxx_s - nl_outputs[0,kk,:]).max()
 
 
 
-    tff_cost, tff_dis_q_P, tff_dis_q_N, pdis_diff = tensorflow_session.run( [fitting_loss, vgg_obj.tf_dis_q_P, vgg_obj.tf_dis_q_N, vgg_obj.pdis_diff], feed_dict=feed_dict )
-    np.set_printoptions( precision=3 )
-    print 'tff_cost:', tff_cost
-    print 'tff_dis_q_P:', tff_dis_q_P
-    print 'tff_dis_q_N:',tff_dis_q_N
-    print 'pdis_diff:', pdis_diff
+    # tff_cost, tff_dis_q_P, tff_dis_q_N, pdis_diff = tensorflow_session.run( [fitting_loss, vgg_obj.tf_dis_q_P, vgg_obj.tf_dis_q_N, vgg_obj.pdis_diff], feed_dict=feed_dict )
+    # np.set_printoptions( precision=3 )
+    # print 'tff_cost:', tff_cost
+    # print 'tff_dis_q_P:', tff_dis_q_P
+    # print 'tff_dis_q_N:',tff_dis_q_N
+    # print 'pdis_diff:', pdis_diff
     code.interact( local=locals() )
 
 

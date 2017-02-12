@@ -580,12 +580,12 @@ class VGGFlow:
 
 ## construct the VGG descriptor at 5 layers
 class VGGDescriptor:
-    def __init__(self):
+    def __init__(self, D=256, K=32, N=60*80, b=16):
         xdd = 0
-        self._D = 256
-        self._K = 32
-        self._N = 60*80
-        self._b = 16
+        self._D = D#256
+        self._K = K#32
+        self._N = N#60*80
+        self._b = b#16
 
 
 
@@ -594,7 +594,7 @@ class VGGDescriptor:
         with slim.arg_scope([slim.conv2d, slim.fully_connected],\
                           activation_fn=tf.nn.relu,\
                           weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),\
-                          weights_regularizer=slim.l2_regularizer(1.01),
+                          weights_regularizer=slim.l2_regularizer(0.001),
                           normalizer_fn=slim.batch_norm, \
                           normalizer_params={'is_training':is_training, 'decay': 0.9, 'updates_collections': None, 'scale': True}\
                           ):
@@ -616,9 +616,11 @@ class VGGDescriptor:
             # TODO: To be replaced with NetVLAD-layer
 
             # ------ NetVLAD ------ #
-            net = self.netvlad_layer( net )
+            net = self.netvlad_layer( net ) #16x64x256, used 32 cluster instead of 64 for computation reason
+            net = tf.nn.l2_normalize( net, dim=2, name='intra_normalization' )
             sh = tf.shape(net)
             net = tf.reshape( net, [sh[0], sh[1]*sh[2] ]) # retrns 16x64*256
+            net = tf.nn.l2_normalize( net, dim=1, name='normalization' )
             return net
             # -------- ENDC ------- #
 
@@ -668,6 +670,7 @@ class VGGDescriptor:
         return tf_cost
 
 
+
     ## log-sum-exp loss for every pair of (d_P, d_N). d_P \in Positive samples. d_N in negative samples
     def soft_ploss( self,tf_vlad_word, nP, nN, margin ):
         sp_q, sp_P, sp_N = tf.split_v( tf_vlad_word, [1,nP,nN], 0 )
@@ -696,6 +699,8 @@ class VGGDescriptor:
 
         # logsumexp
         cost = tf.reduce_logsumexp( pdis_diff )
+        hinged_cost = tf.maximum( cost, tf.constant(0.0), name='hinge_loss' )
+
 
         # self.cost = cost
         self.pdis_diff = pdis_diff
@@ -706,8 +711,40 @@ class VGGDescriptor:
         # self.sp_N = sp_N
         self.tf_dis_q_P = tf_dis_q_P
         self.tf_dis_q_N = tf_dis_q_N
-        return cost
+        return hinged_cost
 
+
+    ## The words are l2_normalized. Comparison with dot product as against
+    ## squared distance earlier with soft_ploss()
+    def soft_angular_ploss( self,tf_vlad_word, nP, nN, margin ):
+        sp_q, sp_P, sp_N = tf.split_v( tf_vlad_word, [1,nP,nN], 0 )
+        #sp_q=query; sp_P=definite_positives ; sp_N=definite_negatives
+        #q:1x16k;   P:5x16k;    N:10x16k
+
+        # Dot Products : <q,P_i>  and <q,N_j>
+        dot_q_P = tf.reduce_sum( tf.multiply( sp_q, sp_P ), axis=1 )
+        dot_q_N = tf.reduce_sum( tf.multiply( sp_q, sp_N ), axis=1 )
+        #TODO: Instead of using dot product use `acos( <q,P_i> )` as measure of
+        # similarity. It will add a cosine stretching. Be careful to keep
+        # cosine streatch not change the direction of similarity. Will have to
+        # negate the angle. This is because, -1 should be mapped to a smaller
+        # angle and +1 should be mapped to a larger angle.
+
+
+        # Pairwise difference of measure of similarity
+        one_a = tf.ones( [nP,1], tf.float32 )
+        one_b = tf.ones( [nN,1], tf.float32 )
+
+        rep_P = tf.matmul( one_b, tf.expand_dims( dot_q_P, 0 ) )
+        rep_N = tf.matmul( one_a, tf.expand_dims( dot_q_N, 0 ) )
+
+        # \forall (i,j) : <q, N_j> - <q,P_i>
+        psimilarity_diff = -rep_P + tf.transpose( rep_N ) + tf.constant(margin, name='margin')
+
+
+        # maximum. the pairwise distances range is (-2,2). 2 is added to cost to make it positive
+        cost = tf.reduce_max( psimilarity_diff ) + tf.constant(2.0)
+        return cost
 
 
 

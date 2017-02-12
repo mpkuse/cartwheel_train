@@ -31,11 +31,11 @@ tcolor = TerminalColors.bcolors()
 
 
 
-PARAM_BAG_DUMP = './bag_dump/bag8/dji_sdk_'
+PARAM_BAG_DUMP = './bag_dump/bag9/dji_sdk_'
 PARAM_START = 1
-PARAM_END   = len( glob.glob(PARAM_BAG_DUMP+'*.npz')) #500
-PARAM_MODEL = 'tf.logs/netvlad_logsumexp_loss/model-17500'
-PARAM_DB_PREFIX = 'tf.logs/netvlad_logsumexp_loss/db2/'
+PARAM_END   = len( glob.glob(PARAM_BAG_DUMP+'*.npz'))-2 #500
+PARAM_MODEL = 'tf.logs/netvlad_hinged_logsumexploss_intranorm/model-4000'
+PARAM_DB_PREFIX = 'tf.logs/netvlad_hinged_logsumexploss_intranorm/db1/'
 
 #
 # Init Tensorflow prediction
@@ -43,7 +43,7 @@ tf_x = tf.placeholder( 'float', [None,240,320,3], name='x' )
 is_training = tf.placeholder( tf.bool, [], name='is_training')
 
 
-vgg_obj = VGGDescriptor()
+vgg_obj = VGGDescriptor(b=1)
 tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
 
 
@@ -73,7 +73,7 @@ t_ann.build(10)
 for ind in range( PARAM_START, PARAM_END ):
     npzFileName = PARAM_BAG_DUMP+str(ind)+'.npz'
 
-    print 'Load NPZFile : ', npzFileName
+    print tcolor.OKGREEN, 'Load NPZFile : ', npzFileName, 'of ', PARAM_END, tcolor.ENDC
     data = np.load( npzFileName )
     A = cv2.flip( data['A'], 0 )
     texPoses = data['texPoses']
@@ -82,29 +82,28 @@ for ind in range( PARAM_START, PARAM_END ):
     im_batch[0,:,:,:] = A.astype('float32')
 
     feed_dict = {tf_x : im_batch,\
-                 is_training:False
+                 is_training:False,\
+                 vgg_obj.initial_t: 0
                 }
 
     startTime = time.time()
     tff_vlad_word = tensorflow_session.run( tf_vlad_word, feed_dict=feed_dict )
-    nn_indx, nn_dist = t_ann.get_nns_by_vector( tff_vlad_word[0,:], 5, include_distances=True )
+    nn_indx, nn_dist = t_ann.get_nns_by_vector( tff_vlad_word[0,:], 10, include_distances=True )
     print 'predict_time = %5.2f ms' %( (time.time() - startTime)*1000. )
 
-    print 'nn_dist : ', nn_dist
+    print 'nn_dist : ', np.round(nn_dist,2)
     print 'nn_indx : ', nn_indx
     for en,h in enumerate(nn_indx):
-        im_name = PARAM_DB_PREFIX+'im/'+str(h)+'.jpg'
+        im_name = PARAM_DB_PREFIX+'/im/'+str(h)+'.jpg'
         # print 'Read Image : ', im_name
         q_im = cv2.imread( im_name )
         cv2.imshow( str(en), q_im )
-        
-
-    # plt.bar( range(0,tff_vlad_word.shape[1]), tff_vlad_word[0,:] )
-    # # plt.draw()
-    # plt.show( )
-
+        en_r = int(en / 5)
+        en_c = en % 5
+        cv2.moveWindow(str(en), 20+350*en_c, 20+350*en_r)
 
     cv2.imshow( 'win', cv2.cvtColor( A.astype('uint8'), cv2.COLOR_RGB2BGR ) )
+    cv2.moveWindow('win', 20, 20+350+350*en_r)
     key = cv2.waitKey(0)
     if key == 27: #ESC
         break

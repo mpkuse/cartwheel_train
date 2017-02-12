@@ -30,9 +30,9 @@ tcolor = TerminalColors.bcolors()
 
 
 #TODO: Write a function to parse arguments
-PARAM_MODEL = 'tf.logs/netvlad_logsumexp_loss/model-17500'
+PARAM_MODEL = 'tf.logs/netvlad_angular_loss/model-7800'
 sl = PARAM_MODEL.rfind( '/' )
-PARAM_DB_PREFIX = PARAM_MODEL[:sl] + '/db2/'
+PARAM_DB_PREFIX = PARAM_MODEL[:sl] + '/db1/'
 PARAM_BATCHSIZE = 16 #usually less than 16
 PARAM_N_RENDERS = 100
 
@@ -92,14 +92,19 @@ for itr in range(PARAM_N_RENDERS):
     startTime = time.time()
 
     batch_size = PARAM_BATCHSIZE
-    im_batch, label_batch = app.step(batch_size)
+    im_batch = None
+    label_batch = None
+    while im_batch==None:
+        im_batch, label_batch = app.step(batch_size)
+
 
     feed_dict = {tf_x : im_batch,\
-                 is_training:False
-                }
+                 is_training:False,\
+                 vgg_obj.initial_t: 0}
 
     tff_vlad_word = tensorflow_session.run( tf_vlad_word, feed_dict=feed_dict )
-    print tff_vlad_word.shape
+    print 'tff_vlad_word.shape : ', tff_vlad_word.shape
+
 
 
     # Write a) Im, b) vlad vec, c) labels

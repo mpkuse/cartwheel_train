@@ -108,19 +108,19 @@ app = TrainRenderer()
 
 t = 0
 while True:
-    im_batch, label_batch = app.step( 20 )
-    for i in range(20):
-        fname = 'dump/'+str(t)+'.jpg'
-        # print 'Write file : ',fname
-        # cv2.imwrite( fname, im_batch[i,:,:,:] )
-
-        x_ = label_batch[i,0]
-        y_ = label_batch[i,1]
-        z_ = label_batch[i,2]
-        CLASS = np.floor(x_/60) + np.floor(y_/60)*10  + 65
-        print "CLASS",CLASS
-
-        t = t + 1
+    # im_batch, label_batch = app.step( 20 )
+    # for i in range(20):
+    #     fname = 'dump/'+str(t)+'.jpg'
+    #     # print 'Write file : ',fname
+    #     # cv2.imwrite( fname, im_batch[i,:,:,:] )
+    #
+    #     x_ = label_batch[i,0]
+    #     y_ = label_batch[i,1]
+    #     z_ = label_batch[i,2]
+    #     CLASS = np.floor(x_/60) + np.floor(y_/60)*10  + 65
+    #     print "CLASS",CLASS
+    #
+    #     t = t + 1
 
 
     app.taskMgr.step()

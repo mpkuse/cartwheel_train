@@ -146,9 +146,10 @@ tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
 
 nP = 5
 nN = 10
-margin = 10.0
+margin = 0.2#10.0
 # fitting_loss = vgg_obj.svm_hinge_loss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
-fitting_loss = vgg_obj.soft_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
+# fitting_loss = vgg_obj.soft_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #keep margin as 10
+fitting_loss = vgg_obj.soft_angular_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #margin as 0.2
 regularization_loss = tf.add_n( slim.losses.get_regularization_losses() )
 tf_cost = regularization_loss + fitting_loss
 
@@ -210,6 +211,8 @@ for gg in accum_vars:
 
 # tf.summary.histogram( 'xxxx_inputs', tf_x )
 
+tf_batch_success_ratio = tf.placeholder( 'float', shape=[], name='batch_success_ratio' )
+tf.summary.scalar( 'batch_success_ratio', tf_batch_success_ratio )
 
 
 
@@ -252,9 +255,8 @@ else:
 # Setup NetVLAD Renderer - This renderer is custom made for NetVLAD training.
 # It renderers 16 images at a time. 1st im is query image. Next nP images are positive samples. Next nN samples are negative samples
 app = NetVLADRenderer()
-#TODO: codeup a while loop - dry iterations (non training). or may be have a separate
-# script for dry iterations with netvlad renderer. this script will be
-# very similar to make_db_netvlad,
+#TODO: Make the per iterations positive samples and negative samples settable from here. possibly as Arguments
+# to the constructor. Using nP nN define above.
 
 #
 # Iterations
@@ -298,18 +300,18 @@ while True:
         veri_fit   += tff_fit
         veri_reg   += tff_regloss
 
-        if tff_fit < 4:
+        if tff_fit < 2.0:
             n_zero_tff_costs = n_zero_tff_costs + 1
 
-        print '%4.3E' %(tff_fit),
+        print '%4.3f' %(tff_fit),
     print
 
     cur_lr = get_learning_rate(tf_iteration, 0.002)
-    _, summary_exec = tensorflow_session.run( [train_step,summary_op], feed_dict={tf_lr: cur_lr } )
+    _, summary_exec,_ = tensorflow_session.run( [train_step,summary_op,tf_batch_success_ratio], feed_dict={tf_lr: cur_lr, tf_batch_success_ratio:n_zero_tff_costs } )
 
     # print '%3d(%8.2fms) : cost=%-8.3f cc_cost=%-8.3f fit_loss=%-8.6f reg_loss=%-8.3f n_zero_costs=%d/%d' %(tf_iteration, 1000.*(time.time() - startTime), mbatch_total_cost, tff_cc_cost, (tff_cc_cost-regloss*mini_batch), regloss*mini_batch, n_zero_tff_costs, mini_batch)
     elpTime = 1000.*(time.time() - startTime)
-    print '%3d(%8.2fms) : total=%-8.3E fit_loss=%-8.3E reg_loss=%-8.3f n_zeros=%d/%d) ' %(tf_iteration,elpTime, tff_cu_cost, tff_cu_fit, tff_cu_regloss, n_zero_tff_costs, mini_batch)
+    print '%3d(%8.2fms) : total=%-8.3f fit_loss=%-8.3f reg_loss=%-8.3f n_zeros=%d/%d) ' %(tf_iteration,elpTime, tff_cu_cost, tff_cu_fit, tff_cu_regloss, n_zero_tff_costs, mini_batch)
     # print '%3d(%8.2fms) : cost(t/f/r) : (%8.2f/%8.2f/%8.2f) ' %(tf_iteration,elpTime, veri_total, veri_fit, veri_reg)
 
 
