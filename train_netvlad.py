@@ -114,6 +114,18 @@ def get_learning_rate( n_iteration, base_lr):
     else:
         return base_lr/40
 
+## M is a 2D matrix
+def zNormalize(M):
+    return (M-M.mean())/(M.std()+0.0001)
+
+def normalize_batch( im_batch ):
+    im_batch_normalized = np.zeros(im_batch.shape)
+    for b in range(im_batch.shape[0]):
+        im_batch_normalized[b,:,:,0] = zNormalize( im_batch[b,:,:,0] )
+        im_batch_normalized[b,:,:,1] = zNormalize( im_batch[b,:,:,1] )
+        im_batch_normalized[b,:,:,2] = zNormalize( im_batch[b,:,:,2] )
+
+    return im_batch_normalized
 
 
 #
@@ -285,9 +297,10 @@ while True:
         while im_batch == None: #if queue not sufficiently filled, try again
             im_batch, label_batch = app.step(16)
 
+        im_batch_normalized = normalize_batch( im_batch )
 
         #vgg_obj.initial_t is for the loopy-tensorflow (tf.while_loop)
-        feed_dict = {tf_x : im_batch,\
+        feed_dict = {tf_x : im_batch_normalized,\
                      is_training:True,\
                      vgg_obj.initial_t: 0
                     }

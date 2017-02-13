@@ -329,8 +329,8 @@ class TrainRenderer(ShowBase):
         # Instead I do app.taskMgr.step() in the main() instead, once and 1 time here. This seem to work OK
         # self.taskMgr.step()
         # Thread.sleep(0.1)
-
-        self.taskMgr.step()
+        if self.q_imStack.qsize() < 16*5:
+            self.taskMgr.step()
 
         # print 'Queues Status (imStack=%d,labelStack=%d)' %(self.q_imStack.qsize(), self.q_labelStack.qsize())
 
