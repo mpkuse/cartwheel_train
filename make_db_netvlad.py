@@ -31,11 +31,11 @@ tcolor = TerminalColors.bcolors()
 
 
 #TODO: Write a function to parse arguments
-PARAM_MODEL = 'tf.logs/netvlad_angular_loss/model-7800'
+PARAM_MODEL = 'tf.logs/netvlad_inp_normed_angular_loss/model-4000'
 sl = PARAM_MODEL.rfind( '/' )
-PARAM_DB_PREFIX = PARAM_MODEL[:sl] + '/db1/'
+PARAM_DB_PREFIX = PARAM_MODEL[:sl] + '/db2/'
 PARAM_BATCHSIZE = 16 #usually less than 16
-PARAM_N_RENDERS = 100
+PARAM_N_RENDERS = 300
 
 print tcolor.HEADER, 'PARAM_MODEL     : ', PARAM_MODEL, tcolor.ENDC
 print tcolor.HEADER, 'PARAM_DB_PREFIX : ', PARAM_DB_PREFIX, tcolor.ENDC
@@ -48,6 +48,27 @@ def print_trainable_vars():
     for vv in tf.trainable_variables():
         print tcolor.OKGREEN, 'name=', vv.name, 'shape=' ,vv.get_shape().as_list(), tcolor.ENDC
     print '# of trainable_vars : ', len(tf.trainable_variables())
+
+
+def rgbnormalize( im ):
+    im_R = im[:,:,0].astype('float32')
+    im_G = im[:,:,1].astype('float32')
+    im_B = im[:,:,2].astype('float32')
+    S = im_R + im_G + im_B
+    out_im = np.zeros(im.shape)
+    out_im[:,:,0] = im_R / (S+1.0)
+    out_im[:,:,1] = im_G / (S+1.0)
+    out_im[:,:,2] = im_B / (S+1.0)
+
+    return out_im
+
+
+def normalize_batch( im_batch ):
+    im_batch_normalized = np.zeros(im_batch.shape)
+    for b in range(im_batch.shape[0]):
+        im_batch_normalized[b,:,:,:] = rgbnormalize( im_batch[b,:,:,:] )
+    return im_batch_normalized
+
 
 #
 # Init Renderer - Using this renderer as we want a few random poses to make a DB
@@ -99,6 +120,7 @@ for itr in range(PARAM_N_RENDERS):
     while im_batch==None:
         im_batch, label_batch = app.step(batch_size)
 
+    im_batch_normalized = normalize_batch( im_batch )
 
     feed_dict = {tf_x : im_batch,\
                  is_training:False,\
@@ -123,55 +145,6 @@ for itr in range(PARAM_N_RENDERS):
 
 
     print 'iteration %d in %4.2f ms' %( itr, (time.time()-startTime)*1000. )
-
-def factors(n):
-    return [i for i in range(1, int(np.sqrt(n+1))) if not n%i]
-
-def makeSprite( thumbnail_stack ):
-    n = len(thumbnail_stack)
-    r, c, _ = thumbnail_stack[0].shape
-
-    print 'Total %d images in stack, each of dim (%d,%d)' %(n,r,c)
-
-    #make size of sprite is 8192x8192
-    print 'Total Images that can fit in the spirit : ', np.round( (8192*8192)/(r*c) )
-
-    v = []
-    nrow = factors(n)[-1]
-    print  'number of images per row : ', nrow
-    thumbnail_sp = np.array_split( thumbnail_stack, nrow )
-    for sp in thumbnail_sp:
-        sprite_row = np.concatenate(sp, axis=1 )
-        print sprite_row.shape
-        v.append( sprite_row )
-
-    sprite = np.concatenate(v, axis=0 )
-    print 'sprite dim : ', sprite.shape
-    return sprite
-
-
-
-
-#
-# Store embeddings for visualization with t-SNE
-word_stack_embeding  = np.vstack( word_stack )
-sprite_image = makeSprite(thumbnail_stack) #np.concatenate(thumbnail_stack, axis=1 )
-cv2.imwrite( os.path.join( PARAM_DB_PREFIX, 'SPRITE.png'), sprite_image )
-tf_embedding = tf.Variable( word_stack_embeding, name='netvlad_descriptors' )
-tensorflow_session.run( tf.global_variables_initializer() )
-
-embeding_saver = tf.train.Saver( [tf_embedding] )
-summary_writer = tf.summary.FileWriter( PARAM_DB_PREFIX, tensorflow_session.graph )
-config = projector.ProjectorConfig()
-embedding = config.embeddings.add()
-embedding.tensor_name=tf_embedding.name
-embedding.sprite.image_path =  os.path.join( PARAM_DB_PREFIX, 'SPRITE.png')
-im_h, im_w, _ = thumbnail_stack[0].shape
-embedding.sprite.single_image_dim.extend([im_w,im_h]) #note that it asks col-count and then row-count
-projector.visualize_embeddings( summary_writer, config)
-embeding_saver.save( tensorflow_session, os.path.join( PARAM_DB_PREFIX, "embeding.ckpt" ) )
-
-# code.interact(local=locals())
 
 
 

@@ -24,6 +24,8 @@ import glob
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 from tensorflow.contrib.tensorboard.plugins import projector #for t-SNE visualization
+from annoy import AnnoyIndex
+
 
 from PandaRender import TrainRenderer
 from CartWheelFlow import VGGDescriptor
@@ -34,16 +36,28 @@ tcolor = TerminalColors.bcolors()
 
 #
 # Params
-PARAM_MODEL = 'tf.logs/netvlad_angular_loss/model-7800'
+PARAM_MODEL = 'tf.logs/netvlad_angular_loss_w_mini_dev/model-4000'
 sl = PARAM_MODEL.rfind( '/' )
-PARAM_DB_PREFIX = PARAM_MODEL[:sl] + '/viz1/'
+PARAM_DB_PREFIX = PARAM_MODEL[:sl] + '/viz_dat_col/'
 
-N_RENDERS = 2000
+N_RENDERS = -1#2000 #set this to -1 to disable synthetic images
 
-PARAM_BAG_DUMP = ['./bag_dump/bag3/dji_sdk_', './bag_dump/bag8/dji_sdk_', './bag_dump/bag9/dji_sdk_', './bag_dump/bag10/dji_sdk_', './bag_dump/bag11/dji_sdk_' ]
-PARAM_BAG_START = [1,1,1,1,1]
-PARAM_BAG_END  = [ len( glob.glob(bag+'*.npz'))-2 for bag in PARAM_BAG_DUMP ] #500
-PARAM_BAG_STEP = [20,20,20,20,20]
+PARAM_BAG_DUMP = [\
+                #   './bag_dump/bag3/dji_sdk_', \
+                #   './bag_dump/bag8/dji_sdk_', \
+                #   './bag_dump/bag9/dji_sdk_', \
+                #   './bag_dump/bag10/dji_sdk_',\
+                #   './bag_dump/bag11/dji_sdk_',\
+                #   './bag_dump/bag21/dji_sdk_'
+                # './other_seqs/Lip6OutdoorDataSet_npz/outdoor_kennedylong'
+                # 'other_seqs/Lip6IndoorDataSet_npz/ttt_'
+                    'other_seqs/data_collection_20100901_npz/c0/img_'
+                  ]
+
+PARAM_BAG_START = [400 for bag in PARAM_BAG_DUMP] # [1,1,1,1,1,1]
+PARAM_BAG_END  = [ len( glob.glob(bag+'*.npz'))-2-400 for bag in PARAM_BAG_DUMP ] #500
+# PARAM_BAG_END  = [ 10000 for bag in PARAM_BAG_DUMP ] #500
+PARAM_BAG_STEP = [5 for bag in PARAM_BAG_DUMP]#[20,20,20,20,20,20]
 
 #TODO: Add assert here to ensure BAG params are of equal length
 
@@ -92,6 +106,56 @@ def makeSprite( thumbnail_stack ):
     return sprite
 
 
+def rgbnormalize( im ):
+    im_R = im[:,:,0].astype('float32')
+    im_G = im[:,:,1].astype('float32')
+    im_B = im[:,:,2].astype('float32')
+    S = im_R + im_G + im_B
+    out_im = np.zeros(im.shape)
+    out_im[:,:,0] = im_R / (S+1.0)
+    out_im[:,:,1] = im_G / (S+1.0)
+    out_im[:,:,2] = im_B / (S+1.0)
+
+    return out_im
+
+
+def normalize_batch( im_batch ):
+    im_batch_normalized = np.zeros(im_batch.shape)
+    for b in range(im_batch.shape[0]):
+        im_batch_normalized[b,:,:,:] = rgbnormalize( im_batch[b,:,:,:] )
+
+    # cv2.imshow( 'org_', (im_batch[0,:,:,:]).astype('uint8') )
+    # cv2.imshow( 'out_', (im_batch_normalized[0,:,:,:]*255.).astype('uint8') )
+    # cv2.waitKey(0)
+    # code.interact(local=locals())
+    return im_batch_normalized
+
+
+# words_db is Nx8192 matrix
+def make_appearance_confusion_matrix( words_db ):
+    startTime = time.time()
+    t_ann = AnnoyIndex( words_db.shape[1], metric='angular'  )
+    for i in range( words_db.shape[0] ):
+        t_ann.add_item( i, words_db[i,:] )
+    t_ann.build(10)
+    print '%6.2fms' %((time.time() - startTime)*1000.), ' Built ANN Index with %d items' %(t_ann.get_n_items())
+
+
+    # Find NN for each image in netvlad descriptor space.
+    C = np.zeros( (t_ann.get_n_items(), t_ann.get_n_items()) )
+    nn_window = 15
+    for i,word in enumerate(word_stack):
+        nn_indx, nn_dist = t_ann.get_nns_by_vector(word[0,:], nn_window, include_distances=True )
+        # print 'nn_dist : ', np.round(nn_dist,2)
+        # print 'nn_indx : ', nn_indx
+        # cont = raw_input( "Press Enter to Continue" )
+        C[i,nn_indx] = np.exp( np.negative(nn_dist) )
+    # cv2.imshow( 'C', np.round(C*255).astype('uint8') )
+    ret_C = np.zeros( (1,C.shape[0],C.shape[1],1))
+    ret_C[0,:,:,0] = C
+    return C, ret_C
+
+
 #
 # Setup Tensorflow with trained weights
 tf_x = tf.placeholder( 'float', [None,240,320,3], name='x' )
@@ -115,31 +179,35 @@ thumbnail_stack = []
 
 #
 # Images from Renderer
-app = TrainRenderer(queue_warning=False)
-INS = len(thumbnail_stack)
-print 'Generating Samples from Renderer'
-for itr in range(N_RENDERS):
+if N_RENDERS > 0 :
+    app = TrainRenderer(queue_warning=False)
+    INS = len(thumbnail_stack)
+    print 'Generating Samples from Renderer'
+    for itr in range(N_RENDERS):
 
-    im_batch = None
-    while im_batch==None:
-        im_batch, label_batch = app.step(1)
+        im_batch = None
+        while im_batch==None:
+            im_batch, label_batch = app.step(1)
 
+        im_batch_normalized = im_batch #normalize_batch( im_batch )
 
-    startTime = time.time()
-    feed_dict = {tf_x : im_batch,\
-                 is_training:False,\
-                 vgg_obj.initial_t: 0}
+        startTime = time.time()
+        feed_dict = {tf_x : im_batch_normalized,\
+                     is_training:False,\
+                     vgg_obj.initial_t: 0}
 
-    tff_vlad_word = tensorflow_session.run( tf_vlad_word, feed_dict )
-    word_stack.append( tff_vlad_word )
-    db_image = cv2.cvtColor( im_batch[0,:,:,:].astype('uint8'), cv2.COLOR_RGB2BGR  )
-    image_stack.append( db_image )
-    thumbnail_stack.append( cv2.resize( db_image, (0,0), fx=0.2, fy=0.2 ) )
+        tff_vlad_word = tensorflow_session.run( tf_vlad_word, feed_dict )
+        word_stack.append( tff_vlad_word )
+        # db_image = cv2.cvtColor( (255.0*im_batch_normalized[0,:,:,:]).astype('uint8'), cv2.COLOR_RGB2BGR  )
+        db_image = cv2.cvtColor( im_batch[0,:,:,:].astype('uint8'), cv2.COLOR_RGB2BGR  )
+        image_stack.append( db_image )
+        thumbnail_stack.append( cv2.resize( db_image, (0,0), fx=0.2, fy=0.2 ) )
 
-    if itr%500 == 0:
-        print tcolor.OKGREEN,'Done Iteration %d in %5.2fms' %(itr, (time.time()-startTime)*1000.), tcolor.ENDC
-print tcolor.HEADER, 'RENDER', INS, len(thumbnail_stack)-1, tcolor.ENDC
-
+        if itr%500 == 0:
+            print tcolor.OKGREEN,'Done Iteration %d in %5.2fms' %(itr, (time.time()-startTime)*1000.), tcolor.ENDC
+    print tcolor.HEADER, 'RENDER', INS, len(thumbnail_stack)-1, tcolor.ENDC
+else:
+    print tcolor.WARNING, 'No synthetically rendered images', tcolor.ENDC
 
 #
 # Real Images
@@ -150,16 +218,19 @@ for u in range(len(PARAM_BAG_DUMP)):
         npzFileName = PARAM_BAG_DUMP[u]+str(ind)+'.npz'
         # print tcolor.OKGREEN, 'Load NPZFile : ', npzFileName, 'of ', PARAM_BAG_END[u], tcolor.ENDC
         data = np.load( npzFileName )
-        A = cv2.flip( data['A'], 0 )
+        A = data['A'] #cv2.flip( data['A'], 0 )
         im_batch = np.zeros( (1,A.shape[0],A.shape[1],A.shape[2]) )
         im_batch[0,:,:,:] = A.astype('float32')
 
-        feed_dict = {tf_x : im_batch,\
+        im_batch_normalized = normalize_batch( im_batch )
+
+        feed_dict = {tf_x : im_batch_normalized,\
                      is_training:False,\
                      vgg_obj.initial_t: 0}
 
         tff_vlad_word = tensorflow_session.run( tf_vlad_word, feed_dict )
         word_stack.append( tff_vlad_word )
+        # db_image = cv2.cvtColor( (255.0*im_batch_normalized[0,:,:,:]).astype('uint8'), cv2.COLOR_RGB2BGR  )
         db_image = cv2.cvtColor( im_batch[0,:,:,:].astype('uint8'), cv2.COLOR_RGB2BGR  )
         image_stack.append(db_image )
         thumbnail_stack.append( cv2.resize( db_image, (0,0), fx=0.2, fy=0.2 ) )
@@ -167,22 +238,32 @@ for u in range(len(PARAM_BAG_DUMP)):
     print tcolor.HEADER, PARAM_BAG_DUMP[u], INS, len(thumbnail_stack)-1, tcolor.ENDC
 
 
+with tf.variable_scope( 'netVLAD', reuse=True ):
+    vlad_c = tf.get_variable( 'vlad_c' )#, [K,D], initializer=tf.contrib.layers.xavier_initializer()) #KxD
+
+
+
+
+
+
+
 
 
 #
 # Process collection bins and produce output for embedding-visualization
 word_stack_embeding  = np.vstack( word_stack )
-sprite_image = makeSprite(thumbnail_stack)
+
 tf_embedding = tf.Variable( word_stack_embeding, name='netvlad_descriptors' )
 tensorflow_session.run( tf.global_variables_initializer() )
 
 summary_writer = tf.summary.FileWriter( PARAM_DB_PREFIX )
-embeding_saver = tf.train.Saver( [tf_embedding] )
+embeding_saver = tf.train.Saver( [tf_embedding, vlad_c] )
 config = projector.ProjectorConfig()
 embedding = config.embeddings.add()
 embedding.tensor_name=tf_embedding.name
+sprite_image = makeSprite(thumbnail_stack)
 cv2.imwrite( os.path.join( PARAM_DB_PREFIX, 'SPRITE.png'), sprite_image )
-print 'Writen Sprite Image : ', os.path.join( PARAM_DB_PREFIX, 'SPRITE.png' )
+print 'Written Sprite Image : ', os.path.join( PARAM_DB_PREFIX, 'SPRITE.png' )
 embedding.sprite.image_path =  os.path.join( PARAM_DB_PREFIX, 'SPRITE.png')
 im_h, im_w, _ = thumbnail_stack[0].shape
 embedding.sprite.single_image_dim.extend([im_w,im_h]) #note that it asks col-count and then row-count
@@ -192,3 +273,22 @@ embeding_saver.save( tensorflow_session, os.path.join( PARAM_DB_PREFIX, "embedin
 os.makedirs( PARAM_DB_PREFIX+'/im' )
 for i,im in enumerate(image_stack):
     cv2.imwrite( PARAM_DB_PREFIX+'/im/'+str(i)+'.png', im )
+
+np.save(PARAM_DB_PREFIX+'netvlad_descriptors.npy', word_stack_embeding )
+
+
+
+# Neural Apearence Based NN - do this only when 1 bag
+if N_RENDERS < 0 and len(PARAM_BAG_DUMP)==1:
+    word_stack_embeding  = np.vstack( word_stack )
+    startTime = time.time()
+    C, ret_C = make_appearance_confusion_matrix(word_stack_embeding )
+    print C.shape, ' confusion matrix created in %4.2fms for %d-dimensions and %d-nn' %( (time.time() - startTime)*1000., word_stack_embeding.shape[1], 15 )
+    c_fname = PARAM_DB_PREFIX+'/make_appearance_confusion_matrix.png'
+    cv2.imwrite( c_fname, (C*255).astype('uint8' ) ) #TODO: write a color-mapped file
+    print 'Written Image : ', c_fname
+    # tf.summary.image('Appearence Confusion Matrix', tf.constant(ret_C, dtype='float32') )
+    # tensorflow_session.run( tf.summary.merge_all() )
+
+
+print 'tensorboard --logdir %s' %(PARAM_DB_PREFIX)

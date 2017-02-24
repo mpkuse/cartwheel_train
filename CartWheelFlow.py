@@ -747,6 +747,60 @@ class VGGDescriptor:
         return cost
 
 
+    # computation of positive-set stddev.
+    def positive_set_std_dev(  self,tf_vlad_word, nP, nN, scale_gamma=1.0 ):
+        sp_P, sp_N = tf.split_v( tf_vlad_word, [1+nP,nN], 0 )
+        #sp_P=similar cluster ; sp_N=outliers
+        #P:6x16k;    N:10x16k
+
+        mask = np.ones( [1+nP,1+nP], dtype=bool )
+        B = np.tril_indices(1+nP) #lower triangular indices
+        mask[B] = False
+
+        mask_y = np.zeros( [1+nP, nN], dtype=bool )
+        B_y = np.triu_indices(n=1+nP, m=nN) #n is for rows
+        mask_y[B_y] = True
+
+        XXt = tf.matmul( sp_P, tf.transpose(sp_P) )
+        masked_XXt = tf.boolean_mask( XXt, mask ) #this is (15,1)
+
+        XYt = tf.matmul( sp_P, tf.transpose(sp_N) )
+        masked_XYt = tf.boolean_mask( XYt, mask_y ) #this is (45,1) 10+9+8+7+6+5
+
+
+
+        # Computation of stddev of vector `masked_XXt`
+        m = tf.reduce_mean(masked_XXt)
+        stddev_n = tf.reduce_sum( tf.multiply( masked_XXt - m, masked_XXt - m ) )
+        nTerms = (1+nP)*nP*0.5
+        stddev_n = tf.sqrt( tf.multiply( 1./(nTerms-1), stddev_n ) )
+
+
+
+
+        # Computation of stddev of vector `masked_XYt`
+        m = tf.reduce_mean(masked_XYt)
+        stddev_d = tf.reduce_sum( tf.multiply( masked_XYt - m, masked_XYt - m ) )
+        nTerms =  (nN+nN-nP)*(nP+1)*0.5
+        stddev_d = tf.sqrt( tf.multiply( 1./(nTerms-1), stddev_d ) )
+
+        stddev = tf.div( stddev_n, stddev_d )
+        stddev = tf.multiply( tf.constant( scale_gamma ), stddev )
+
+        # self.p_sp_P = sp_P
+        # self.p_sp_N = sp_N
+        # self.p_XXt = XXt
+        # self.p_masked_XXt = masked_XXt
+        # self.p_stddev = stddev
+        #
+        # self.p_XYt = XYt
+        # self.p_masked_XYt = masked_XYt
+        return stddev
+
+
+
+
+
 
     def should_continue(self,t, *args):
         return t<self.time_steps

@@ -39,7 +39,7 @@ def verify_membership_mat( C ):
     return sm
 
 #TODO: parse_args for this var
-PARAM_model_restore = 'tf.logs/netvlad_hinged_logsumexploss_intranorm/model-4000' #None
+PARAM_model_restore =  'tf.logs/netvlad_hinged_logsumexploss_intranorm/model-4000' #None
 
 #
 # Tensorflow
@@ -56,6 +56,7 @@ margin = 0.2#10.0
 # fitting_loss = vgg_obj.svm_hinge_loss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
 # fitting_loss = vgg_obj.soft_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
 fitting_loss = vgg_obj.soft_angular_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
+pos_set_dev = vgg_obj.positive_set_std_dev( tf_vlad_word, nP=nP, nN=nN, scale_gamma=10. )
 
 for vv in tf.trainable_variables():
     print 'name=', vv.name, 'shape=' ,vv.get_shape().as_list()
@@ -91,10 +92,10 @@ while True:
                  s.initial_t: 0,\
                 }
 
-    proc = [tf_vlad_word, s.sp_q, s.sp_P, s.sp_N, s.dot_q_P, s.dot_q_N, s.psimilarity_diff, fitting_loss]
-    tff_vlad_word, tff_sp_q, tff_sp_P, tff_sp_N, tff_dot_q_P, tff_dot_q_N, tff_psimilarity_diff, tff_cost = tensorflow_session.run( proc, feed_dict=feed_dict )
+    proc = [tf_vlad_word, fitting_loss, pos_set_dev, s.p_sp_P, s.p_sp_N, s.p_XXt, s.p_masked_XXt, s.p_stddev, s.p_XYt, s.p_masked_XYt]
+    tff_vlad_word, tff_cost, tff_pos_set_dev, p_sp_P, p_sp_N, p_XXt, p_masked_XXt, p_stddev, p_XYt, p_masked_XYt  = tensorflow_session.run( proc, feed_dict=feed_dict )
 
-    print 'cost : ', tff_cost
+    print 'cost : ', tff_cost, tff_pos_set_dev
 
     # kk = 23
     # xxx = np.multiply( nl_sm[:,kk:kk+1] * np.ones((1,256)), nl_Xd - nl_c[kk,:] )

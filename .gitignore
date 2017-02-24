@@ -36,3 +36,9 @@ bag_dump*
 Doxyfile
 doc/
 *.pickle
+test_im_normalization/*
+other_seqs
+*.npy
+*.npz
+all_models
+

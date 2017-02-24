@@ -33,6 +33,9 @@ def parse_cmd_args():
     parser.add_argument("-r", "--model_restore", help="Path of model file for restore. This file path is \
                                     split(-) and last number is set as iteration count. \
                                     Absense of this will lead to xavier init")
+    parser.add_argument("-rn", "--restore_iteration_number", help="Overide the iteration number from -r argument. \
+                                    If not specified, will read iteration num from model file name. Will be \
+                                    active only when restoring")
 
     parser.add_argument("-wsu", "--write_summary", help="Write summary after every N iteration (default:20)")
     parser.add_argument("-wmo", "--write_tf_model", help="Write tf model after every N iteration (default:500)")
@@ -69,9 +72,13 @@ def parse_cmd_args():
         model_restore = None
 
 
+    if args.restore_iteration_number:
+        restore_iteration_number = int(args.restore_iteration_number)
+    else:
+        restore_iteration_number = -1
 
 
-    return tensorboard_prefix, write_summary, model_save_prefix, write_tf_model, model_restore
+    return tensorboard_prefix, write_summary, model_save_prefix, write_tf_model, model_restore, restore_iteration_number
 
 
 
@@ -118,26 +125,43 @@ def get_learning_rate( n_iteration, base_lr):
 def zNormalize(M):
     return (M-M.mean())/(M.std()+0.0001)
 
+def rgbnormalize( im ):
+    im_R = im[:,:,0].astype('float32')
+    im_G = im[:,:,1].astype('float32')
+    im_B = im[:,:,2].astype('float32')
+    S = im_R + im_G + im_B
+    out_im = np.zeros(im.shape)
+    out_im[:,:,0] = im_R / (S+1.0)
+    out_im[:,:,1] = im_G / (S+1.0)
+    out_im[:,:,2] = im_B / (S+1.0)
+
+    return out_im
+
+
 def normalize_batch( im_batch ):
     im_batch_normalized = np.zeros(im_batch.shape)
     for b in range(im_batch.shape[0]):
-        im_batch_normalized[b,:,:,0] = zNormalize( im_batch[b,:,:,0] )
-        im_batch_normalized[b,:,:,1] = zNormalize( im_batch[b,:,:,1] )
-        im_batch_normalized[b,:,:,2] = zNormalize( im_batch[b,:,:,2] )
+        im_batch_normalized[b,:,:,:] = rgbnormalize( im_batch[b,:,:,:] )
 
+    # cv2.imshow( 'org_', (im_batch[0,:,:,:]).astype('uint8') )
+    # cv2.imshow( 'out_', (im_batch_normalized[0,:,:,:]*255.).astype('uint8') )
+    # cv2.waitKey(0)
+    # code.interact(local=locals())
     return im_batch_normalized
 
 
 #
 # Parse Commandline
 PARAM_tensorboard_prefix, PARAM_n_write_summary, \
-    PARAM_model_save_prefix, PARAM_n_write_tf_model, PARAM_model_restore = parse_cmd_args()
+    PARAM_model_save_prefix, PARAM_n_write_tf_model, \
+    PARAM_model_restore, PARAM_restore_iteration_number = parse_cmd_args()
 print tcolor.HEADER, 'tensorboard_prefix     : ', PARAM_tensorboard_prefix, tcolor.ENDC
 print tcolor.HEADER, 'write_summary every    : ', PARAM_n_write_summary, 'iterations', tcolor.ENDC
 print tcolor.HEADER, 'model_save_prefix      : ', PARAM_model_save_prefix, tcolor.ENDC
 print tcolor.HEADER, 'write_tf_model every   : ', PARAM_n_write_tf_model, 'iterations', tcolor.ENDC
 
 print tcolor.HEADER, 'model_restore          : ', PARAM_model_restore, tcolor.ENDC
+print tcolor.HEADER, 'restore_iteration_n    : ', PARAM_restore_iteration_number, tcolor.ENDC
 
 
 
@@ -159,11 +183,13 @@ tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
 nP = 5
 nN = 10
 margin = 0.2#10.0
+scale_gamma = 0.07
 # fitting_loss = vgg_obj.svm_hinge_loss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
 # fitting_loss = vgg_obj.soft_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #keep margin as 10
 fitting_loss = vgg_obj.soft_angular_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #margin as 0.2
+pos_set_dev = vgg_obj.positive_set_std_dev( tf_vlad_word, nP=nP, nN=nN, scale_gamma=scale_gamma )
 regularization_loss = tf.add_n( slim.losses.get_regularization_losses() )
-tf_cost = regularization_loss + fitting_loss
+tf_cost = regularization_loss + fitting_loss + pos_set_dev
 
 for vv in tf.trainable_variables():
     print 'name=', vv.name, 'shape=' ,vv.get_shape().as_list()
@@ -205,13 +231,17 @@ cumel_fit_loss = tf.Variable( 0, dtype=tf.float32, trainable=False )
 zero_fit_loss  = cumel_fit_loss.assign( tf.zeros_like(cumel_fit_loss) )
 accum_fit_loss  = cumel_fit_loss.assign_add( fitting_loss )
 
-
+# Cummulate positive set deviation
+cumel_pos_set_dev = tf.Variable( 0, dtype=tf.float32, trainable=False )
+zero_pos_set_dev  = cumel_pos_set_dev.assign( tf.zeros_like(cumel_pos_set_dev) )
+accum_pos_set_dev = cumel_pos_set_dev.assign_add( pos_set_dev )
 
 
 # Summary
 tf.summary.scalar( 'cumel_tf_cost', cumel_tf_cost )
-tf.summary.scalar( 'cumel_fit_loss', cumel_fit_loss )
 tf.summary.scalar( 'cumel_reg_loss', cumel_reg_loss )
+tf.summary.scalar( 'cumel_fit_loss', cumel_fit_loss )
+tf.summary.scalar( 'cumel_pos_set_dev', cumel_pos_set_dev )
 tf.summary.scalar( 'lr', tf_lr )
 # list trainable variables
 for vv in trainable_vars:
@@ -254,10 +284,14 @@ else:
     print tcolor.OKGREEN,'Restore model from : ', PARAM_model_restore, tcolor.ENDC
     tensorflow_saver.restore( tensorflow_session, PARAM_model_restore )
 
-    a__ = PARAM_model_restore.find('-')
-    n__ = int(PARAM_model_restore[a__+1:])
-    print tcolor.OKGREEN,'Restore Iteration : ', n__, tcolor.ENDC
-    tf_iteration =  n__#the number after `-`. eg. model-40000, 40000 will be set as iteration
+    if PARAM_restore_iteration_number <= -1:
+        a__ = PARAM_model_restore.find('-')
+        n__ = int(PARAM_model_restore[a__+1:])
+        print tcolor.OKGREEN,'Restore Iteration : ', n__, tcolor.ENDC
+        tf_iteration =  n__#the number after `-`. eg. model-40000, 40000 will be set as iteration
+    else:
+        tf_iteration = PARAM_restore_iteration_number
+
 
 
 
@@ -286,7 +320,7 @@ while True:
     # print "\n"
     # time.sleep(5)
 
-    tensorflow_session.run([zero_op,zero_tf_cost,zero_fit_loss,zero_reg_loss]) #set gradient_cummulator and cost_cummulator to zero
+    tensorflow_session.run([zero_op,zero_tf_cost,zero_fit_loss,zero_reg_loss,zero_pos_set_dev]) #set gradient_cummulator and cost_cummulator to zero
 
     mini_batch = 24
     n_zero_tff_costs = 0 #Number of zero-costs in this batch
@@ -308,7 +342,7 @@ while True:
         # _dis_q_P, _dis_q_N, _cost = verify_cost( tff_word, nP, nN, margin )
         # print tff_cost, _cost
         # tff_cost, _grad_, tff_cc_cost, regloss = tensorflow_session.run( [tf_cost, accum_op, accum_cc_cost_op, regularization_loss], feed_dict=feed_dict)
-        tff_cost, tff_fit, tff_regloss, tff_cu_cost, tff_cu_fit, tff_cu_regloss, _grad_ = tensorflow_session.run( [tf_cost, fitting_loss, regularization_loss,  accum_tf_cost, accum_fit_loss, accum_reg_loss,  accum_op ], feed_dict=feed_dict )
+        tff_cost, tff_fit, tff_regloss, tff_pos_set_dev, tff_cu_cost, tff_cu_fit, tff_cu_regloss, tff_cu_dev, _grad_ = tensorflow_session.run( [tf_cost, fitting_loss, regularization_loss,  pos_set_dev, accum_tf_cost, accum_fit_loss, accum_reg_loss, accum_pos_set_dev, accum_op ], feed_dict=feed_dict )
         veri_total += tff_cost
         veri_fit   += tff_fit
         veri_reg   += tff_regloss
@@ -316,15 +350,16 @@ while True:
         if tff_fit < 2.0:
             n_zero_tff_costs = n_zero_tff_costs + 1
 
-        print '%4.3f' %(tff_fit),
+        print tcolor.OKBLUE, '%4.3f' %(tff_fit), tcolor.ENDC,
+        print  tcolor.UNDERLINE, '(%4.3f)' %(tff_pos_set_dev), tcolor.ENDC,
     print
 
-    cur_lr = get_learning_rate(tf_iteration, 0.002)
+    cur_lr = get_learning_rate(tf_iteration, 0.0005)
     _, summary_exec,_ = tensorflow_session.run( [train_step,summary_op,tf_batch_success_ratio], feed_dict={tf_lr: cur_lr, tf_batch_success_ratio:n_zero_tff_costs } )
 
     # print '%3d(%8.2fms) : cost=%-8.3f cc_cost=%-8.3f fit_loss=%-8.6f reg_loss=%-8.3f n_zero_costs=%d/%d' %(tf_iteration, 1000.*(time.time() - startTime), mbatch_total_cost, tff_cc_cost, (tff_cc_cost-regloss*mini_batch), regloss*mini_batch, n_zero_tff_costs, mini_batch)
     elpTime = 1000.*(time.time() - startTime)
-    print '%3d(%8.2fms) : total=%-8.3f fit_loss=%-8.3f reg_loss=%-8.3f n_zeros=%d/%d) ' %(tf_iteration,elpTime, tff_cu_cost, tff_cu_fit, tff_cu_regloss, n_zero_tff_costs, mini_batch)
+    print '%3d(%8.2fms) : total=%-8.3f fit_loss=%-8.3f dev=%-8.3f reg_loss=%-8.3f n_zeros=%d/%d) ' %(tf_iteration,elpTime, tff_cu_cost, tff_cu_fit, tff_cu_dev, tff_cu_regloss, n_zero_tff_costs, mini_batch)
     # print '%3d(%8.2fms) : cost(t/f/r) : (%8.2f/%8.2f/%8.2f) ' %(tf_iteration,elpTime, veri_total, veri_fit, veri_reg)
 
 

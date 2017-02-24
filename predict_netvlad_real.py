@@ -37,6 +37,27 @@ PARAM_END   = len( glob.glob(PARAM_BAG_DUMP+'*.npz'))-2 #500
 PARAM_MODEL = 'tf.logs/netvlad_hinged_logsumexploss_intranorm/model-4000'
 PARAM_DB_PREFIX = 'tf.logs/netvlad_hinged_logsumexploss_intranorm/db1/'
 
+
+
+def rgbnormalize( im ):
+    im_R = im[:,:,0].astype('float32')
+    im_G = im[:,:,1].astype('float32')
+    im_B = im[:,:,2].astype('float32')
+    S = im_R + im_G + im_B
+    out_im = np.zeros(im.shape)
+    out_im[:,:,0] = im_R / (S+1.0)
+    out_im[:,:,1] = im_G / (S+1.0)
+    out_im[:,:,2] = im_B / (S+1.0)
+
+    return out_im
+
+
+def normalize_batch( im_batch ):
+    im_batch_normalized = np.zeros(im_batch.shape)
+    for b in range(im_batch.shape[0]):
+        im_batch_normalized[b,:,:,:] = rgbnormalize( im_batch[b,:,:,:] )
+    return im_batch_normalized
+
 #
 # Init Tensorflow prediction
 tf_x = tf.placeholder( 'float', [None,240,320,3], name='x' )
