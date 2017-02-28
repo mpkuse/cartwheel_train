@@ -27,4 +27,6 @@ time<br/>
 
 
 ### Note
-You will need to have im_batch.pickle and label_batch.pickle
+You will need to have im_batch.pickle and label_batch.pickle which is used in the renderers in case the queue is not fully filled.
+
+

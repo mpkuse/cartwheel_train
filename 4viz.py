@@ -38,9 +38,9 @@ tcolor = TerminalColors.bcolors()
 # Params
 PARAM_MODEL = 'tf.logs/netvlad_angular_loss_w_mini_dev/model-4000'
 sl = PARAM_MODEL.rfind( '/' )
-PARAM_DB_PREFIX = PARAM_MODEL[:sl] + '/viz_dat_col/'
+PARAM_DB_PREFIX = PARAM_MODEL[:sl] + '/viz_char/'
 
-N_RENDERS = -1#2000 #set this to -1 to disable synthetic images
+N_RENDERS = 20 #set this to -1 to disable synthetic images
 
 PARAM_BAG_DUMP = [\
                 #   './bag_dump/bag3/dji_sdk_', \
@@ -51,7 +51,7 @@ PARAM_BAG_DUMP = [\
                 #   './bag_dump/bag21/dji_sdk_'
                 # './other_seqs/Lip6OutdoorDataSet_npz/outdoor_kennedylong'
                 # 'other_seqs/Lip6IndoorDataSet_npz/ttt_'
-                    'other_seqs/data_collection_20100901_npz/c0/img_'
+                    # 'other_seqs/data_collection_20100901_npz/c0/img_'
                   ]
 
 PARAM_BAG_START = [400 for bag in PARAM_BAG_DUMP] # [1,1,1,1,1,1]

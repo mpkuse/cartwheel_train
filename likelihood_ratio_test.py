@@ -21,15 +21,17 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
 from PandaRender import NetVLADRenderer
+# from PandaRender import TrainRenderer
 from CartWheelFlow import VGGDescriptor
+import DimRed
 
 #
 import TerminalColors
 tcolor = TerminalColors.bcolors()
 
 PARAM_MODEL = 'tf.logs/netvlad_angular_loss_w_mini_dev/model-4000'
-PARAM_N_RENDERS = 10 #Number of renders in a run
-PARAM_N_RUNS    = 10  #Number of runs
+PARAM_N_RENDERS = 100 #Number of renders in a run
+PARAM_N_RUNS    = 5  #Number of runs
 PARAM_THRESH = [0.95, 0.9, 0.85, 0.8, 0.75, 0.7, 0.65 ]
 
 def rgbnormalize( im ):
@@ -57,11 +59,13 @@ def normalize_batch( im_batch ):
     return im_batch_normalized
 
 def thumbnail_batch( im_batch ):
-    thumbs = np.zeros((im_batch.shape[0],int(im_batch.shape[1]/5),int(im_batch.shape[2]/5),im_batch.shape[3]))
+    dim = (im_batch.shape[0],int(im_batch.shape[1]/5),int(im_batch.shape[2]/5),im_batch.shape[3])
+    thumbs = np.zeros(dim, dtype='uint8')
     for b in range(im_batch.shape[0]):
         thumbs[b,:,:,:] = cv2.resize( cv2.cvtColor(im_batch[b,:,:,:].astype('uint8'), cv2.COLOR_RGB2BGR ), (0,0), fx=0.2, fy=0.2 )
     return thumbs
 
+## tff_vlad_word is 16x8192. 8192 is actually not fixed and 2nd dim can be anything
 def get_confusion_mat(tff_vlad_word, THRESH):
     pred = np.dot( tff_vlad_word[0,:], np.transpose( tff_vlad_word[1:,:] ) ) > THRESH
     grtr = np.hstack( (np.ones( 5, dtype=bool ), np.zeros( 10, dtype=bool ) ) ) #5xTrue 10xFalse
@@ -87,6 +91,9 @@ def mathews_corr_score(C):
     return mcc_n / np.sqrt(mcc_d)
 
 
+
+
+
 #
 # Init Tensorflow
 # Init netvlad - def computational graph, load trained model
@@ -100,9 +107,24 @@ print tcolor.OKGREEN,'Restore model from : ', PARAM_MODEL, tcolor.ENDC
 tensorflow_saver.restore( tensorflow_session, PARAM_MODEL )
 
 
+
+#
+# Init DimRed Mapping (Dimensionality Reduction by Learning Invariant Mapping)
+dm_vlad_word = tf.placeholder( 'float', [None,None], name='vlad_word' )
+net = DimRed.DimRed()
+dm_vlad_char = net.fc( dm_vlad_word )
+tensorflow_saver2 = tf.train.Saver( net.return_vars() )
+PARAM_MODEL_DIM_RED = 'tf.logs/siamese_dimred_fc/model-400'
+tensorflow_saver2.restore( tensorflow_session, PARAM_MODEL_DIM_RED )
+print tcolor.OKGREEN,'Restore model from : ', PARAM_MODEL_DIM_RED, tcolor.ENDC
+
+
+
+
 #
 # Renderer (q, [P]. [N])
 app = NetVLADRenderer()
+# app = TrainRenderer()
 print 'Pre-run'
 im_batch = None
 while im_batch == None: #if queue not sufficiently filled, try again
@@ -113,6 +135,7 @@ vlad_collection = []
 thumb_collection = []
 for n_runs in range(PARAM_N_RUNS):
     C = np.zeros( (len(PARAM_THRESH),2,2) )
+    D = np.zeros( (len(PARAM_THRESH),2,2) )
     startTime = time.time()
     for n_renders in range(PARAM_N_RENDERS):
         im_batch, label_batch = app.step(16)
@@ -132,18 +155,30 @@ for n_runs in range(PARAM_N_RUNS):
 
         # dim reduction. Also compute the confusion matrix with `tff_vlad_char` as descriptor
         # tff_vlad_char = reduce_dimensions( tff_vlad_word )
+        dmm_vlad_char = tensorflow_session.run( dm_vlad_char, feed_dict={dm_vlad_word: tff_vlad_word})
+        code.interact(local=locals())
 
 
         # Find correct detections and make confusion matrix
         for i in range(len(PARAM_THRESH)):
             C[i,:,:] += get_confusion_mat( tff_vlad_word, PARAM_THRESH[i] )
+            D[i,:,:] += get_confusion_mat( dmm_vlad_char, PARAM_THRESH[i] )
 
     #for each confusion matrix print likelihood ratio
-    print 'run#%-4d(%4.2f) : ' %(n_runs, (time.time()-startTime) ),
+    print ' run#%-4d(%4.2f) : ' %(n_runs, (time.time()-startTime) ),
     for i in range(len(PARAM_THRESH)):
         print '%8.3f(%4.2f)' %(likelihood_ratio(C[i,:,:]), mathews_corr_score(C[i,:,:]) ),
     print ''
+    print tcolor.FAIL,'run#%-4d(%4.2f) : ' %(n_runs, (time.time()-startTime) ),
+    for i in range(len(PARAM_THRESH)):
+        print '%8.3f(%4.2f)' %(likelihood_ratio(D[i,:,:]), mathews_corr_score(D[i,:,:]) ),
+    print '', tcolor.ENDC
+    code.interact( local=locals() )
 
 
-M = np.vstack( vlad_collection )
-T = np.vstack( thumb_collection )
+
+# M = np.vstack( vlad_collection )
+# T = np.vstack( thumb_collection )
+# npzfname =  'dim_red_training_dat.npz'
+# np.savez( npzfname, M=M, thumbs=T )
+# print 'Written file : ', npzfname
