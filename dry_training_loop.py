@@ -39,7 +39,7 @@ def verify_membership_mat( C ):
     return sm
 
 #TODO: parse_args for this var
-PARAM_model_restore =  'tf.logs/netvlad_hinged_logsumexploss_intranorm/model-4000' #None
+PARAM_model_restore =  'tf.logs/netvlad_angular_loss_w_mini_dev/model-4000'
 
 #
 # Tensorflow
@@ -86,16 +86,19 @@ while True:
         im_batch, label_batch = app.step(16)
 
 
+    #Remember to normalize images R=R/(R+G+B); G=G/(R+G+B) ; B=B/(R+G+B)
+
     s = vgg_obj
     feed_dict = {tf_x : im_batch,\
                  is_training:False,\
                  s.initial_t: 0,\
                 }
 
-    proc = [tf_vlad_word, fitting_loss, pos_set_dev, s.p_sp_P, s.p_sp_N, s.p_XXt, s.p_masked_XXt, s.p_stddev, s.p_XYt, s.p_masked_XYt]
-    tff_vlad_word, tff_cost, tff_pos_set_dev, p_sp_P, p_sp_N, p_XXt, p_masked_XXt, p_stddev, p_XYt, p_masked_XYt  = tensorflow_session.run( proc, feed_dict=feed_dict )
+    # proc = [tf_vlad_word, fitting_loss, pos_set_dev, s.p_sp_P, s.p_sp_N, s.p_XXt, s.p_masked_XXt, s.p_stddev, s.p_XYt, s.p_masked_XYt]
+    # tff_vlad_word, tff_cost, tff_pos_set_dev, p_sp_P, p_sp_N, p_XXt, p_masked_XXt, p_stddev, p_XYt, p_masked_XYt  = tensorflow_session.run( proc, feed_dict=feed_dict )
 
-    print 'cost : ', tff_cost, tff_pos_set_dev
+    tff_cost, tff_vlad_word = tensorflow_session.run( [fitting_loss,tf_vlad_word], feed_dict=feed_dict)
+    print 'cost : ', tff_cost
 
     # kk = 23
     # xxx = np.multiply( nl_sm[:,kk:kk+1] * np.ones((1,256)), nl_Xd - nl_c[kk,:] )

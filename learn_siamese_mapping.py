@@ -27,7 +27,6 @@ tcolor = TerminalColors.bcolors()
 
 # PARAM_DESCRIPTOR_DB = 'dim_red_training_dat_random.npz'
 PARAM_DESCRIPTOR_DB = 'dim_red_training_dat_random.npz'
-PARAM_N_NN = 35 #number of nearest neighbour
 PARAM_DIST_THRESH = 0.630 #to keep NN whose distances is less than this. 0.630 is equivalent to 0.80 in dot-product
 
 PARAM_model_restore = None
@@ -61,7 +60,7 @@ reduced_x2 = net.fc( tf_x2 )
 print tcolor.OKGREEN, 'Setup Siamese Network for dimensionality reduction', tcolor.ENDC
 
 tf_fit_cost = net.constrastive_loss( reduced_x1, reduced_x2, tf_Y )
-tf_reg_cost = net.regularization_loss( 0.00005 )
+tf_reg_cost = net.regularization_loss( 0.000001 )
 tf_cost =  tf_fit_cost + tf_reg_cost
 tf.summary.scalar( 'tf_fit_cost', tf_fit_cost )
 tf.summary.scalar( 'tf_reg_cost', tf_reg_cost )
@@ -97,9 +96,9 @@ summary_op = tf.summary.merge_all()
 ########################################
 #
 # Iterations
-batch_size = 1000
-n_conjoining = 5
-n_nonjoining = 5
+batch_size = 4000
+n_conjoining = 20
+n_nonjoining = 20
 print tcolor.OKGREEN, 'Start descent iterations with batchsize=%d, #conjoins=%d, #nonjoins=%d' %(batch_size, n_conjoining, n_nonjoining), tcolor.ENDC
 for itr in range(10000):
     # print 'ITERATION ', itr
@@ -151,8 +150,8 @@ for itr in range(10000):
     # tff_r1, tff_r2, tff_Dw, tff_Ls, tff_q, tff_cost = tensorflow_session.run( proc, feed_dict=feed_dict )
 
     time_descent = (time.time() - startTime)
-    print 'tf%4d [%4.2fs/%4.2fs] total_cost=%8.5f fit_cost=%8.5f reg_cost=%8.5f' \
-                            %(itr, time_assembly, time_descent, tff_cost, tff_fit_cost, tff_reg_cost )
+    print 'tf%4d [%4.2fs/%4.2fs] total_cost=%8.5f fit_cost=%8.5f reg_cost=%8.5f ti=%5d' \
+                            %(itr, time_assembly, time_descent, tff_cost, tff_fit_cost, tff_reg_cost, ti )
 
     # Summary Writing
     if itr % 5 == 0:
