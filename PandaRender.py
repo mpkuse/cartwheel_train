@@ -769,7 +769,7 @@ class TestRenderer(ShowBase):
             return None, None
 
 
-    def __init__(self ):
+    def __init__(self, pathGen=None ):
         ShowBase.__init__(self)
         self.taskMgr.add( self.renderNtestTask, "renderNtestTask" ) #changing camera poses
         self.taskMgr.add( self.putAxesTask, "putAxesTask" ) #draw co-ordinate axis
@@ -859,17 +859,18 @@ class TestRenderer(ShowBase):
         #
         # Setting up Splines
         # Note: Start interpolation at 50,
-
-        # self.pathGen = PathMaker.PathMaker().path_flat_h
-        # self.pathGen = PathMaker.PathMaker().path_smallM
-        # self.pathGen = PathMaker.PathMaker().path_yaw_only
-        # self.pathGen = PathMaker.PathMaker().path_bigM
-        # self.pathGen = PathMaker.PathMaker().path_flat_spiral
-        # self.pathGen = PathMaker.PathMaker().path_helix
-        # self.pathGen = PathMaker.PathMaker().path_like_real
-        # self.pathGen = PathMaker.PathMaker().path_like_real2
-        self.pathGen = PathMaker.PathMaker().path_large_loop
-
+        if pathGen is None:
+            # self.pathGen = PathMaker.PathMaker().path_flat_h
+            # self.pathGen = PathMaker.PathMaker().path_smallM
+            # self.pathGen = PathMaker.PathMaker().path_yaw_only
+            # self.pathGen = PathMaker.PathMaker().path_bigM
+            # self.pathGen = PathMaker.PathMaker().path_flat_spiral
+            # self.pathGen = PathMaker.PathMaker().path_helix
+            # self.pathGen = PathMaker.PathMaker().path_like_real
+            # self.pathGen = PathMaker.PathMaker().path_like_real2
+            self.pathGen = PathMaker.PathMaker().path_large_loop
+        else:
+            self.pathGen = pathGen
 
         t,X = self.pathGen()
 

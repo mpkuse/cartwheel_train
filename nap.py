@@ -16,6 +16,8 @@ import time
 import code
 import argparse
 import glob
+from collections import namedtuple
+
 # from annoy import AnnoyIndex
 # import kdtree
 import VPTree
@@ -24,6 +26,7 @@ import tensorflow as tf
 import tensorflow.contrib.slim as slim
 from CartWheelFlow import VGGDescriptor
 import DimRed
+from ParticleFilter import ParticleFilter as PartFilt
 
 
 #
@@ -109,10 +112,9 @@ if PARAM_DEBUG:
     for jk in range(PARAM_BAG_START):
         d_CHAR_ary.append( np.zeros(128) )
 
-rb_PRIOR = dok_matrix( (1000000,1) )
-rb_PRIOR[0] = 1.0
-rb_OBSER = lil_matrix( (1000000,1) )
-# rb_POSTERIOR = lil_matrix( (1000000,1) )
+pf = PartFilt()
+Likelihood = namedtuple( 'Likelihood', 'L dist')
+
 for ind in range( PARAM_BAG_START, PARAM_BAG_END, PARAM_BAG_STEP ):
     # Read Image
     npzFileName = PARAM_BAG_DUMP+str(ind)+'.npz'
@@ -181,45 +183,28 @@ for ind in range( PARAM_BAG_START, PARAM_BAG_END, PARAM_BAG_STEP ):
             time_tree_nn_search.append(  (time.time() - startTime)*1000. )
 
     print pos_index, ":",
+    likelihoods = []
     for nn in all_nn:
-        print nn[1].idx, '(%5.3f), ' %(nn[0]),
+        print nn[1].idx, '(%5.3f), ' %(nn[0]), #idx, distance
+        likelihoods.append( Likelihood(L=nn[1].idx, dist=nn[0]) )
         # if PARAM_DEBUG:
             # APPEARENCE_CONFUSION[ pos_index ,nn[1].idx] = 1.0 #np.exp( np.negative(nn[0]) )
     print ''
 
 
     # Filter Nearest Neighbours - Recursive Bayesian Filter
-    startRBF = time.time()
-    print_sparse_matrix( rb_PRIOR, 'PRIOR' )
+    if pos_index > 10:
+        pf.plot_particles()
+        code.interact( local=locals() )
+        startRBF = time.time()
+        pf.update( likelihoods )
+        # if pos_index%20 == 0:
+            # pf.resample()
+        pf.propagate()
+        print tcolor.OKBLUE+'[%6.2fms] Recursive Bayesian Filter' %( (time.time() - startRBF)*1000. ), tcolor.ENDC
 
-    # Step-1 : Record Observation pdf
-    rb_OBSER = dok_matrix( (1000000,1) )
-    for nn in all_nn:
-        # print 'rb_OBSER[%d] = %6.2f' %(nn[1].idx, np.exp( np.negative(nn[0]) ) )
-        rb_OBSER[nn[1].idx] = np.exp( np.negative(nn[0]) )
-    # rb_OBSER = rb_OBSER.tocoo() / rb_OBSER.tocoo().sum()
-    rb_OBSER = rb_OBSER / rb_OBSER.sum()
-    print_sparse_matrix( rb_OBSER, 'LKEHD' )
 
-    # Step-2 : Posterior = Likelihood x Prior
-    # rb_POSTERIOR = rb_OBSER.multiply( rb_PRIOR )
-    rb_POSTERIOR = rb_OBSER + rb_PRIOR
-    rb_POSTERIOR = rb_POSTERIOR / rb_POSTERIOR.sum()
-    print_sparse_matrix( rb_POSTERIOR, 'POSTR' )
 
-    # Step-3 : Propagate Posterior and set is as PRIOR (for next step)
-    tmp = rb_POSTERIOR.todok()
-    rb_PRIOR = dok_matrix( (1000000,1) )
-    for key in tmp.keys():
-        # print 'rb_PRIOR[ %d,%d ] = rb_POSTERIOR[ %d, %d ]' %(key[0]+1, key[1],  key[0] , key[1])
-        rb_PRIOR[ key[0]+1, key[1] ] = rb_POSTERIOR[ key[0] , key[1] ]
-        rb_PRIOR[ key[0]+1+1, key[1] ] = 0.47*rb_POSTERIOR[ key[0] , key[1] ]
-        rb_PRIOR[ key[0], key[1] ] = 0.47*rb_POSTERIOR[ key[0] , key[1] ]
-    rb_PRIOR = rb_PRIOR / rb_PRIOR.sum()
-
-    print tcolor.OKBLUE+'[%6.2fms] Recursive Bayesian Filter' %( (time.time() - startRBF)*1000. ), tcolor.ENDC
-
-    code.interact( local=locals() )
 
 
 

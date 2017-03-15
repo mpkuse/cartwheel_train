@@ -828,7 +828,7 @@ class VGGDescriptor:
         for bi in range(b):
             diff_slice = tf.slice( diff_scaled, [bi*N,0], [N, D] )
             vec_of_1_256.append( tf.reduce_sum( diff_slice, axis=0 ) )
-
+            #TODO: Try reduce_mean here. (As suggested in 'All About VLAD' paper)
 
 
         # outputs_ = outputs_.write(t, tf.segment_sum( diff, self.tf_e))
