@@ -594,7 +594,7 @@ class VGGDescriptor:
         with slim.arg_scope([slim.conv2d, slim.fully_connected],\
                           activation_fn=tf.nn.relu,\
                           weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),\
-                          weights_regularizer=slim.l2_regularizer(0.001),
+                          weights_regularizer=slim.l2_regularizer(0.00002),
                           normalizer_fn=slim.batch_norm, \
                           normalizer_params={'is_training':is_training, 'decay': 0.9, 'updates_collections': None, 'scale': True}\
                           ):
@@ -610,10 +610,8 @@ class VGGDescriptor:
             net = slim.conv2d( net, 256, [3,3], activation_fn=None, scope='conv3' ) #w/o relu at the end. with BN. #TODO Possibly also remove BN from last one
             # tf.summary.histogram( 'xxxx_blk3', net )
 
-            # net is now 16x60x80x256
+            # net is now 16x60x80x256. If this changes. Need to change self.N (which is currently 60*80) accordingly
 
-            # MAX POOLING
-            # TODO: To be replaced with NetVLAD-layer
 
             # ------ NetVLAD ------ #
             net = self.netvlad_layer( net ) #16x64x256, used 32 cluster instead of 64 for computation reason

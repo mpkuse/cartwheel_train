@@ -31,11 +31,12 @@ tcolor = TerminalColors.bcolors()
 
 
 #TODO: Write a function to parse arguments
-PARAM_MODEL = 'tf.logs/netvlad_inp_normed_angular_loss/model-4000'
+# PARAM_MODEL = 'tf.logs/netvlad_inp_normed_angular_loss/model-4000' #rememebr to set K=32
+PARAM_MODEL = 'tf.logs/netvlad_k48/model-13000' #remember to set K=48 (48 clusters) for VGGDescriptor
 sl = PARAM_MODEL.rfind( '/' )
-PARAM_DB_PREFIX = PARAM_MODEL[:sl] + '/db2/'
+PARAM_DB_PREFIX = PARAM_MODEL[:sl] + '/db_xl/'
 PARAM_BATCHSIZE = 16 #usually less than 16
-PARAM_N_RENDERS = 300
+PARAM_N_RENDERS = 50000
 
 print tcolor.HEADER, 'PARAM_MODEL     : ', PARAM_MODEL, tcolor.ENDC
 print tcolor.HEADER, 'PARAM_DB_PREFIX : ', PARAM_DB_PREFIX, tcolor.ENDC
@@ -81,7 +82,7 @@ tf_x = tf.placeholder( 'float', [None,240,320,3], name='x' )
 is_training = tf.placeholder( tf.bool, [], name='is_training')
 
 
-vgg_obj = VGGDescriptor()
+vgg_obj = VGGDescriptor(K=48)
 tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
 
 
@@ -155,18 +156,23 @@ label_stack_2 = np.vstack( label_stack )
 print 'Images Path : ', PARAM_DB_PREFIX+'/im/'
 print tcolor.OKGREEN, 'Total Images Written : ', str(PARAM_BATCHSIZE*PARAM_N_RENDERS), tcolor.ENDC
 
+#TODO: Consider not writing pickle, instead just write them as .npz
+# with open( PARAM_DB_PREFIX+'/vlad_word.pickle', 'w') as handle:
+#     print 'Writing : ',word_stack_2.shape, ' : ', PARAM_DB_PREFIX+'/vlad_word.pickle'
+#     pickle.dump( word_stack_2, handle, protocol=pickle.HIGHEST_PROTOCOL )
+#     print tcolor.OKGREEN, 'Done..', tcolor.ENDC
+#
+# with open( PARAM_DB_PREFIX+'/label.pickle', 'w') as handle:
+#     print 'Writing : ', label_stack_2.shape, ' : ', PARAM_DB_PREFIX+'/label.pickle'
+#     pickle.dump( label_stack_2, handle, protocol=pickle.HIGHEST_PROTOCOL )
+#     print tcolor.OKGREEN, 'Done..', tcolor.ENDC
 
-with open( PARAM_DB_PREFIX+'/vlad_word.pickle', 'w') as handle:
-    print 'Writing : ',word_stack_2.shape, ' : ', PARAM_DB_PREFIX+'/vlad_word.pickle'
-    pickle.dump( word_stack_2, handle, protocol=pickle.HIGHEST_PROTOCOL )
-    print tcolor.OKGREEN, 'Done..', tcolor.ENDC
 
-with open( PARAM_DB_PREFIX+'/label.pickle', 'w') as handle:
-    print 'Writing : ', label_stack_2.shape, ' : ', PARAM_DB_PREFIX+'/label.pickle'
-    pickle.dump( label_stack_2, handle, protocol=pickle.HIGHEST_PROTOCOL )
-    print tcolor.OKGREEN, 'Done..', tcolor.ENDC
-
-
+# Write descriptors suitable for script `learn_siamese_mapping.py`
+print '-----'
+print tcolor.WARNING, 'Write descriptors suitable for script `learn_siamese_mapping.py`', tcolor.ENDC
+print 'Writing npz', PARAM_DB_PREFIX+'/vlad_words_db.npz', 'M=%s ; label_4dof=%s ; thumbs=[] ;' %(word_stack_2.shape,label_stack_2.shape)
+np.savez( PARAM_DB_PREFIX+'/vlad_words_db.npz', M=word_stack_2, label_4dof=label_stack_2, thumbs=[] )
 
 #
 # Build KD-tree : Approximate NN

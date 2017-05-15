@@ -37,7 +37,7 @@ def parse_cmd_args():
                                     If not specified, will read iteration num from model file name. Will be \
                                     active only when restoring")
 
-    parser.add_argument("-wsu", "--write_summary", help="Write summary after every N iteration (default:20)")
+    parser.add_argument("-wsu", "--write_summary", help="Write summary after every N iteration (default:5)")
     parser.add_argument("-wmo", "--write_tf_model", help="Write tf model after every N iteration (default:500)")
     args = parser.parse_args()
 
@@ -52,7 +52,7 @@ def parse_cmd_args():
     if args.write_summary:
         write_summary = int(args.write_summary) #TODO: check this is not negative or zero
     else:
-        write_summary = 20
+        write_summary = 5
 
     # Prefix path for `Saver`
     if args.model_save_prefix:
@@ -149,6 +149,12 @@ def normalize_batch( im_batch ):
     # code.interact(local=locals())
     return im_batch_normalized
 
+#note that `im_batch` is still a batch of color images need to make them to gray scale and then normalize
+def normalize_batch_gray( im_batch ):
+    #input : 16x240x320x3
+    im_batch_gray = np.mean( im_batch, axis=3, keepdims=True ) / 255.0 #16x240x320x1
+    # code.interact( local=locals() )
+    return im_batch_gray
 
 #
 # Parse Commandline
@@ -168,11 +174,11 @@ print tcolor.HEADER, 'restore_iteration_n    : ', PARAM_restore_iteration_number
 
 #
 # Tensorflow - VGG16-NetVLAD Word
-tf_x = tf.placeholder( 'float', [16,240,320,3], name='x' )
+tf_x = tf.placeholder( 'float', [16,240,320,3], name='x' ) #this has to be 3 if training with color images
 is_training = tf.placeholder( tf.bool, [], name='is_training')
 
 
-vgg_obj = VGGDescriptor()
+vgg_obj = VGGDescriptor(K=48)
 tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
 
 
@@ -332,6 +338,9 @@ while True:
             im_batch, label_batch = app.step(16)
 
         im_batch_normalized = normalize_batch( im_batch )
+        # im_batch_normalized = normalize_batch_gray( im_batch )
+
+        #remember to set tf_x to 16,240,320,1 if using grays or to 16,240,320,3 if using 3-channels
 
         #vgg_obj.initial_t is for the loopy-tensorflow (tf.while_loop)
         feed_dict = {tf_x : im_batch_normalized,\
@@ -354,7 +363,7 @@ while True:
         print  tcolor.UNDERLINE, '(%4.3f)' %(tff_pos_set_dev), tcolor.ENDC,
     print
 
-    cur_lr = get_learning_rate(tf_iteration, 0.0005)
+    cur_lr = get_learning_rate(tf_iteration, 0.001)
     _, summary_exec,_ = tensorflow_session.run( [train_step,summary_op,tf_batch_success_ratio], feed_dict={tf_lr: cur_lr, tf_batch_success_ratio:n_zero_tff_costs } )
 
     # print '%3d(%8.2fms) : cost=%-8.3f cc_cost=%-8.3f fit_loss=%-8.6f reg_loss=%-8.3f n_zero_costs=%d/%d' %(tf_iteration, 1000.*(time.time() - startTime), mbatch_total_cost, tff_cc_cost, (tff_cc_cost-regloss*mini_batch), regloss*mini_batch, n_zero_tff_costs, mini_batch)

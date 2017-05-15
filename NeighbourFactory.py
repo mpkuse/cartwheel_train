@@ -20,7 +20,7 @@ class NeighbourFactory:
         print 'Load : ', PARAM_DESCRIPTOR_DB
         npz_data = np.load( PARAM_DESCRIPTOR_DB )
         self.M = npz_data['M'] # N x 8192. N is number of instances
-        self.thumbs = npz_data['thumbs'] # Nx48x64x3. corresponding thumbnails
+        # self.thumbs = npz_data['thumbs'] # Nx48x64x3. corresponding thumbnails
         print tcolor.OKGREEN, 'M.shape=', self.M.shape, tcolor.ENDC
         startTime = time.time()
         print 'Building KD-Tree'

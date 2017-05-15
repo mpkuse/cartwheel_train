@@ -22,24 +22,35 @@ import code
 
 
 class DimRed():
-    def __init__(self):
+    def __init__(self, n_input_dim=8192, n_intermediate_dim=512, n_output_dim=128):
         tcol = TerminalColors.bcolors()
+        # Print info
+        print tcol.HEADER, 'n_input_dim', tcol.ENDC, n_input_dim
+        print tcol.HEADER, 'n_intermediate_dim', tcol.ENDC, n_intermediate_dim
+        print tcol.HEADER, 'n_output_dim', tcol.ENDC, n_output_dim
+        self.n_input_dim = n_input_dim
+        self.n_intermediate_dim = n_intermediate_dim
+        self.n_output_dim = n_output_dim
+        self.n_8192 = n_input_dim
+        self.n_512 = n_intermediate_dim
+        self.n_128 = n_output_dim
+
         # Define trainable variables
         with tf.device( '/gpu:0'):
             with tf.variable_scope( 'fully_connected', reuse=None ):
-                w_fc1 = tf.get_variable( 'w_fc1', [8192, 512], initializer=tf.contrib.layers.xavier_initializer())
-                b_fc1 = tf.get_variable( 'b_fc1', [512], initializer=tf.contrib.layers.xavier_initializer())
+                w_fc1 = tf.get_variable( 'w_fc1', [self.n_8192, self.n_512], initializer=tf.contrib.layers.xavier_initializer())
+                b_fc1 = tf.get_variable( 'b_fc1', [self.n_512], initializer=tf.contrib.layers.xavier_initializer())
 
-                w_fc2 = tf.get_variable( 'w_fc2', [512, 128], initializer=tf.contrib.layers.xavier_initializer())
-                b_fc2 = tf.get_variable( 'b_fc2', [128], initializer=tf.contrib.layers.xavier_initializer())
+                w_fc2 = tf.get_variable( 'w_fc2', [self.n_512, self.n_128], initializer=tf.contrib.layers.xavier_initializer())
+                b_fc2 = tf.get_variable( 'b_fc2', [self.n_128], initializer=tf.contrib.layers.xavier_initializer())
 
     def return_vars(self):
         with tf.variable_scope( 'fully_connected', reuse=True ):
-            w_fc1 = tf.get_variable( 'w_fc1', [8192, 512], initializer=tf.contrib.layers.xavier_initializer())
-            b_fc1 = tf.get_variable( 'b_fc1', [512], initializer=tf.contrib.layers.xavier_initializer())
+            w_fc1 = tf.get_variable( 'w_fc1', [self.n_8192, self.n_512], initializer=tf.contrib.layers.xavier_initializer())
+            b_fc1 = tf.get_variable( 'b_fc1', [self.n_512], initializer=tf.contrib.layers.xavier_initializer())
 
-            w_fc2 = tf.get_variable( 'w_fc2', [512, 128], initializer=tf.contrib.layers.xavier_initializer())
-            b_fc2 = tf.get_variable( 'b_fc2', [128], initializer=tf.contrib.layers.xavier_initializer())
+            w_fc2 = tf.get_variable( 'w_fc2', [self.n_512, self.n_128], initializer=tf.contrib.layers.xavier_initializer())
+            b_fc2 = tf.get_variable( 'b_fc2', [self.n_128], initializer=tf.contrib.layers.xavier_initializer())
             return [w_fc1, b_fc1, w_fc2, b_fc2]
 
 
@@ -47,10 +58,10 @@ class DimRed():
     ## and D is the input dimensionality. Returns a bxd tensor. d << D
     def fc( self,tf_x ):
         with tf.variable_scope( 'fully_connected', reuse=True ):
-            w_fc1 = tf.get_variable( 'w_fc1', [8192, 512] )
-            b_fc1 = tf.get_variable( 'b_fc1', [512] )
-            w_fc2 = tf.get_variable( 'w_fc2', [512, 128] )
-            b_fc2 = tf.get_variable( 'b_fc2', [128] )
+            w_fc1 = tf.get_variable( 'w_fc1', [self.n_8192, self.n_512] )
+            b_fc1 = tf.get_variable( 'b_fc1', [self.n_512] )
+            w_fc2 = tf.get_variable( 'w_fc2', [self.n_512, self.n_128] )
+            b_fc2 = tf.get_variable( 'b_fc2', [self.n_128] )
 
         with tf.device( '/gpu:0'):
             c1_pre = tf.add( tf.matmul( tf_x, w_fc1 ), b_fc1 )
@@ -86,9 +97,9 @@ class DimRed():
     def regularization_loss( self, reg_lambda ):
         with tf.device( '/cpu:0'):
             with tf.variable_scope( 'fully_connected', reuse=True ):
-                w_fc1 = tf.get_variable( 'w_fc1', [8192, 512] )
-                b_fc1 = tf.get_variable( 'b_fc1', [512] )
-                w_fc2 = tf.get_variable( 'w_fc2', [512, 128] )
-                b_fc2 = tf.get_variable( 'b_fc2', [128] )
+                w_fc1 = tf.get_variable( 'w_fc1', [self.n_8192, self.n_512] )
+                b_fc1 = tf.get_variable( 'b_fc1', [self.n_512] )
+                w_fc2 = tf.get_variable( 'w_fc2', [self.n_512, self.n_128] )
+                b_fc2 = tf.get_variable( 'b_fc2', [self.n_128] )
             q = tf.nn.l2_loss( w_fc1 ) + tf.nn.l2_loss( w_fc2 )
             return tf.multiply( reg_lambda, q)

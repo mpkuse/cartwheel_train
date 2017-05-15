@@ -38,12 +38,20 @@ def verify_membership_mat( C ):
 
     return sm
 
+#note that `im_batch` is still a batch of color images need to make them to gray scale and then normalize
+def normalize_batch_gray( im_batch ):
+    #input : 16x240x320x3
+    im_batch_gray = np.mean( im_batch, axis=3, keepdims=True ) / 255.0 #16x240x320x1
+    # code.interact( local=locals() )
+    return im_batch_gray
+
+
 #TODO: parse_args for this var
-PARAM_model_restore =  'tf.logs/netvlad_angular_loss_w_mini_dev/model-4000'
+PARAM_model_restore = None# 'tf.logs/netvlad_angular_loss_w_mini_dev/model-4000'
 
 #
 # Tensorflow
-tf_x = tf.placeholder( 'float', [16,240,320,3], name='x' )
+tf_x = tf.placeholder( 'float', [16,240,320,1], name='x' )
 is_training = tf.placeholder( tf.bool, [], name='is_training')
 
 
@@ -88,8 +96,10 @@ while True:
 
     #Remember to normalize images R=R/(R+G+B); G=G/(R+G+B) ; B=B/(R+G+B)
 
+    im_batch_gray = normalize_batch_gray( im_batch ) #resulting in 16x240x320x1
+
     s = vgg_obj
-    feed_dict = {tf_x : im_batch,\
+    feed_dict = {tf_x : im_batch_gray,\
                  is_training:False,\
                  s.initial_t: 0,\
                 }
@@ -114,7 +124,7 @@ while True:
     # print 'tff_dis_q_P:', tff_dis_q_P
     # print 'tff_dis_q_N:',tff_dis_q_N
     # print 'pdis_diff:', pdis_diff
-    code.interact( local=locals() )
+    # code.interact( local=locals() )
 
 
     l += 1
