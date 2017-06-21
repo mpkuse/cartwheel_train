@@ -588,9 +588,8 @@ class VGGDescriptor:
         self._b = b#16
 
 
-
     # vggnet16. is_training is a placeholder boolean
-    def vgg16( self, inputs, is_training ):
+    def vgg16_raw_features( self, inputs, is_training ):
         with slim.arg_scope([slim.conv2d, slim.fully_connected],\
                           activation_fn=tf.nn.relu,\
                           weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),\
@@ -599,15 +598,41 @@ class VGGDescriptor:
                           normalizer_params={'is_training':is_training, 'decay': 0.9, 'updates_collections': None, 'scale': True}\
                           ):
             # tf.summary.histogram( 'xxxx_inputs', inputs )
-            net = slim.repeat(inputs, 2, slim.conv2d, 64, [3, 3], scope='conv1')
+            net = slim.repeat(inputs, 2, slim.conv2d, 64, [3, 3], scope='conv1') #64
             # tf.summary.histogram( 'xxxx_blk1', net )
             net = slim.max_pool2d(net, [2, 2], scope='pool1')
-            net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], scope='conv2')
+            net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], scope='conv2') #128
             # tf.summary.histogram( 'xxxx_blk2', net )
             net = slim.max_pool2d(net, [2, 2], scope='pool2')
 
-            # net = slim.repeat(net, 1, slim.conv2d, 256, [3, 3], scope='conv3')    #with relu and with BN
-            net = slim.conv2d( net, 256, [3,3], activation_fn=None, scope='conv3' ) #w/o relu at the end. with BN. #TODO Possibly also remove BN from last one
+            # net = slim.repeat(net, 1, slim.conv2d, self.D, [3, 3], scope='conv3')    #with relu and with BN
+            net = slim.conv2d( net, self._D, [3,3], activation_fn=None, scope='conv3' ) #256 #w/o relu at the end. with BN. #TODO Possibly also remove BN from last one
+            # tf.summary.histogram( 'xxxx_blk3', net )
+
+            # net is now 16x60x80x256. If this changes. Need to change self.N (which is currently 60*80) accordingly
+            return net
+
+
+
+    # vggnet16. is_training is a placeholder boolean
+    def vgg16( self, inputs, is_training ):
+        with slim.arg_scope([slim.conv2d, slim.fully_connected],\
+                          activation_fn=tf.nn.relu,\
+                          weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),\
+                          weights_regularizer=slim.l2_regularizer(0.00000000001),
+                          normalizer_fn=slim.batch_norm, \
+                          normalizer_params={'is_training':is_training, 'decay': 0.9, 'updates_collections': None, 'scale': True}\
+                          ):
+            # tf.summary.histogram( 'xxxx_inputs', inputs )
+            net = slim.repeat(inputs, 2, slim.conv2d, 64, [3, 3], scope='conv1') #64
+            # tf.summary.histogram( 'xxxx_blk1', net )
+            net = slim.max_pool2d(net, [2, 2], scope='pool1')
+            net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], scope='conv2') #128
+            # tf.summary.histogram( 'xxxx_blk2', net )
+            net = slim.max_pool2d(net, [2, 2], scope='pool2')
+
+            # net = slim.repeat(net, 1, slim.conv2d, self.D, [3, 3], scope='conv3')    #with relu and with BN
+            net = slim.conv2d( net, self._D, [3,3], activation_fn=None, scope='conv3' ) #256 #w/o relu at the end. with BN. #TODO Possibly also remove BN from last one
             # tf.summary.histogram( 'xxxx_blk3', net )
 
             # net is now 16x60x80x256. If this changes. Need to change self.N (which is currently 60*80) accordingly
@@ -720,8 +745,10 @@ class VGGDescriptor:
         #q:1x16k;   P:5x16k;    N:10x16k
 
         # Dot Products : <q,P_i>  and <q,N_j>
-        dot_q_P = tf.reduce_sum( tf.multiply( sp_q, sp_P ), axis=1 )
-        dot_q_N = tf.reduce_sum( tf.multiply( sp_q, sp_N ), axis=1 )
+        dot_q_P = tf.constant(1.0) - tf.reduce_sum( tf.multiply( sp_q, sp_P ), axis=1 )
+        dot_q_N = tf.constant(1.0) - tf.reduce_sum( tf.multiply( sp_q, sp_N ), axis=1 )
+        self.dot_q_P = dot_q_P
+        self.dot_q_N = dot_q_N
         #TODO: Instead of using dot product use `acos( <q,P_i> )` as measure of
         # similarity. It will add a cosine stretching. Be careful to keep
         # cosine streatch not change the direction of similarity. Will have to
@@ -737,11 +764,22 @@ class VGGDescriptor:
         rep_N = tf.matmul( one_a, tf.expand_dims( dot_q_N, 0 ) )
 
         # \forall (i,j) : <q, N_j> - <q,P_i>
-        psimilarity_diff = -rep_P + tf.transpose( rep_N ) + tf.constant(margin, name='margin')
+        # psimilarity_diff = -rep_P + tf.transpose( rep_N ) + tf.constant(margin, name='margin')
+        psimilarity_diff = rep_P - tf.transpose( rep_N ) + tf.constant(margin, name='margin')
+        #
+        #
+        # # maximum. the pairwise distances range is (-2,2). 2 is added to cost to make it positive
+        # cost = tf.reduce_max( psimilarity_diff ) + tf.constant(2.0)
+        # # cost = -tf.reduce_min( psimilarity_diff ) + tf.constant(2.0)
+
+        # Margin max
+        # max_i_P = tf.constant(margin, name='margin') + tf.reduce_max( dot_q_P ) #dot_q_P are the euclidean distance. note that the vectors are unit so euclidean distance will be small (1-dot) for similar vectors. will be large for dis-similar vectors. In a sense eucliean distance is a measure of similarity
+        # min_j_N = tf.reduce_min( dot_q_N )
+
+        # cost = tf.maximum( max_i_P - min_j_N, tf.constant(0.0), name='hinge_loss' )
+        cost = tf.reduce_mean( tf.maximum( psimilarity_diff, tf.constant(0.0), name='hinge_loss' ), name='total_hinge_loss' )
 
 
-        # maximum. the pairwise distances range is (-2,2). 2 is added to cost to make it positive
-        cost = tf.reduce_max( psimilarity_diff ) + tf.constant(2.0)
         return cost
 
 
@@ -783,7 +821,7 @@ class VGGDescriptor:
         stddev_d = tf.sqrt( tf.multiply( 1./(nTerms-1), stddev_d ) )
 
         stddev = tf.div( stddev_n, stddev_d )
-        stddev = tf.multiply( tf.constant( scale_gamma ), stddev )
+        stddev = tf.multiply( tf.constant( scale_gamma ), stddev_n )
 
         # self.p_sp_P = sp_P
         # self.p_sp_N = sp_N
@@ -846,9 +884,21 @@ class VGGDescriptor:
 
         #init netVLAD layer's trainable_variables
         with tf.variable_scope( 'netVLAD', reuse=None ):
-            vlad_w = tf.get_variable( 'vlad_w', [1,1,D,K], initializer=tf.contrib.layers.xavier_initializer_conv2d())# 1x1xDxK
-            vlad_b = tf.get_variable( 'vlad_b', [K], initializer=tf.contrib.layers.xavier_initializer()) #K
-            vlad_c = tf.get_variable( 'vlad_c', [K,D], initializer=tf.contrib.layers.xavier_initializer()) #KxD
+            # vlad_w = tf.get_variable( 'vlad_w', [1,1,D,K], initializer=tf.contrib.layers.xavier_initializer_conv2d())# 1x1xDxK
+            # vlad_b = tf.get_variable( 'vlad_b', [K], initializer=tf.contrib.layers.xavier_initializer()) #K
+            # vlad_c = tf.get_variable( 'vlad_c', [K,D], initializer=tf.contrib.layers.xavier_initializer()) #KxD
+
+            # New Idea - Uniformly distributed on n-sphere
+            Cx = np.random.randn( K, D+1)
+            Cy = Cx / np.linalg.norm( Cx, axis=1, keepdims=True )
+            Cy = Cy[:,0:-1]
+            vlad_c = tf.get_variable( 'vlad_c', initializer=tf.constant(Cy.astype('float32')) )
+            vlad_b = tf.get_variable( 'vlad_b', initializer=tf.constant( -np.linalg.norm(Cy.astype('float32'), axis=1)**2  ) ) #K
+            Cw = np.zeros( (1,1,D,K) )
+            Cw[0,0,:,:] = 2.0 * np.transpose(Cy.astype('float32'))
+            vlad_w = tf.get_variable( 'vlad_w', initializer=tf.constant(Cw.astype('float32')) )
+
+
 
 
 

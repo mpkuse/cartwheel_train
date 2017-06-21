@@ -27,18 +27,21 @@ tcolor = TerminalColors.bcolors()
 
 
 # PARAM_DESCRIPTOR_DB = 'dim_red_training_dat_random.npz'
-PARAM_DESCRIPTOR_DB = 'tf.logs/netvlad_k48/db2/vlad_words_db.npz'
-PARAM_DIST_THRESH = 0.630 #to keep NN whose distances is less than this. 0.630 is equivalent to 0.80 in dot-product
+PARAM_DESCRIPTOR_DB = 'tf.logs/netvlad_k48/db_xl/vlad_words_db.npz'
+PARAM_DIST_THRESH = 0.680 #to keep NN whose distances is less than this. 0.630 is equivalent to 0.80 in dot-product
 
 PARAM_model_restore = None
 
 sl = PARAM_DESCRIPTOR_DB.rfind( '/' )
-PARAM_tensorboard_prefix = PARAM_DESCRIPTOR_DB[:sl] + '/siamese_dimred_slowlr/'
+PARAM_tensorboard_prefix = PARAM_DESCRIPTOR_DB[:sl] + '/siamese_dimred/'
 # PARAM_tensorboard_prefix = 'tf.logs/netvlad_k48/siamese_dimred/'
 PARAM_model_save_prefix  = PARAM_tensorboard_prefix+'/model'
 
-PARAM_net_intermediate_dim = 1024
+PARAM_net_intermediate_dim = 2048
 PARAM_net_out_dim = 256
+
+PARAM_REGULARIZATION_LAMBDA = 0.0001
+PARAM_BASE_LEARNING_RATE = 0.00008
 
 print tcolor.HEADER, 'NETVLAD_DESCRIPTOR_DB : ', PARAM_DESCRIPTOR_DB, tcolor.ENDC
 print tcolor.HEADER, 'SIAMESE_DIMRED_MODEL_SAVE : ', PARAM_tensorboard_prefix, tcolor.ENDC
@@ -71,8 +74,8 @@ reduced_x1 = net.fc( tf_x1 )
 reduced_x2 = net.fc( tf_x2 )
 print tcolor.OKGREEN, 'Setup Siamese Network for dimensionality reduction', tcolor.ENDC
 
-tf_fit_cost = net.constrastive_loss( reduced_x1, reduced_x2, tf_Y )
-tf_reg_cost = net.regularization_loss( 0.00001 )
+tf_fit_cost = 1000.0*net.constrastive_loss( reduced_x1, reduced_x2, tf_Y )
+tf_reg_cost = net.regularization_loss( PARAM_REGULARIZATION_LAMBDA )
 tf_cost =  tf_fit_cost + tf_reg_cost
 tf.summary.scalar( 'tf_fit_cost', tf_fit_cost )
 tf.summary.scalar( 'tf_reg_cost', tf_reg_cost )
@@ -108,9 +111,9 @@ summary_op = tf.summary.merge_all()
 ########################################
 #
 # Iterations
-batch_size = 4000
-n_conjoining = 20 #neighbours
-n_nonjoining = 20 #non neighbours
+batch_size = 450
+n_conjoining = 30 #neighbours
+n_nonjoining = 60 #non neighbours
 print tcolor.OKGREEN, 'Start descent iterations with batchsize=%d, #conjoins=%d, #nonjoins=%d' %(batch_size, n_conjoining, n_nonjoining), tcolor.ENDC
 for itr in range(10000):
     # print 'ITERATION ', itr
@@ -154,7 +157,7 @@ for itr in range(10000):
     feed_dict = { tf_x1: X1,\
                   tf_x2: X2,\
                   tf_Y : Y,\
-                  lr   : learning_rate(0.0005, itr)
+                  lr   : learning_rate(PARAM_BASE_LEARNING_RATE, itr)
                 }
     _, summary_exec, tff_cost, tff_fit_cost, tff_reg_cost = tensorflow_session.run( [train_op, summary_op, tf_cost, tf_fit_cost, tf_reg_cost ], feed_dict=feed_dict )
 

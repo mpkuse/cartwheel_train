@@ -1278,8 +1278,8 @@ class NetVLADRenderer(ShowBase):
         self.mc_Z_max = 120
         self.mc_Z_min = 45
 
-        self.mc_yaw_max = 60
-        self.mc_yaw_min = -60
+        self.mc_yaw_max = 85
+        self.mc_yaw_min = -85
 
         self.mc_roll_max = 5
         self.mc_roll_min = -5

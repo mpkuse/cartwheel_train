@@ -24,7 +24,6 @@ from CartWheelFlow import VGGDescriptor
 import TerminalColors
 tcolor = TerminalColors.bcolors()
 
-import pyqtgraph as pg
 
 def parse_cmd_args():
     """Parse Arguments"""
@@ -130,12 +129,11 @@ def rgbnormalize( im ):
     im_R = im[:,:,0].astype('float32')
     im_G = im[:,:,1].astype('float32')
     im_B = im[:,:,2].astype('float32')
-    # S = im_R + im_G + im_B
-    S = abs(im_R) + abs(im_G) + abs(im_B)
+    S = im_R + im_G + im_B
     out_im = np.zeros(im.shape)
-    out_im[:,:,0] = im_R / (S+.0001)
-    out_im[:,:,1] = im_G / (S+.0001)
-    out_im[:,:,2] = im_B / (S+.0001)
+    out_im[:,:,0] = im_R / (S+1.0)
+    out_im[:,:,1] = im_G / (S+1.0)
+    out_im[:,:,2] = im_B / (S+1.0)
 
     return out_im
 
@@ -143,10 +141,7 @@ def rgbnormalize( im ):
 def normalize_batch( im_batch ):
     im_batch_normalized = np.zeros(im_batch.shape)
     for b in range(im_batch.shape[0]):
-        im_batch_normalized[b,:,:,0] = zNormalize( im_batch[b,:,:,0])
-        im_batch_normalized[b,:,:,1] = zNormalize( im_batch[b,:,:,1])
-        im_batch_normalized[b,:,:,2] = zNormalize( im_batch[b,:,:,2])
-        # im_batch_normalized[b,:,:,:] = rgbnormalize( im_batch_normalized[b,:,:,:] )
+        im_batch_normalized[b,:,:,:] = rgbnormalize( im_batch[b,:,:,:] )
 
     # cv2.imshow( 'org_', (im_batch[0,:,:,:]).astype('uint8') )
     # cv2.imshow( 'out_', (im_batch_normalized[0,:,:,:]*255.).astype('uint8') )
@@ -193,14 +188,14 @@ tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
 
 nP = 5
 nN = 10
-margin = 0.1#10.0
+margin = 0.2#10.0
 scale_gamma = 0.07
 # fitting_loss = vgg_obj.svm_hinge_loss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
 # fitting_loss = vgg_obj.soft_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #keep margin as 10
 fitting_loss = vgg_obj.soft_angular_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #margin as 0.2
 pos_set_dev = vgg_obj.positive_set_std_dev( tf_vlad_word, nP=nP, nN=nN, scale_gamma=scale_gamma )
 regularization_loss = tf.add_n( slim.losses.get_regularization_losses() )
-tf_cost = regularization_loss + fitting_loss #+ pos_set_dev
+tf_cost = regularization_loss + fitting_loss + pos_set_dev
 
 for vv in tf.trainable_variables():
     print 'name=', vv.name, 'shape=' ,vv.get_shape().as_list()
@@ -212,8 +207,8 @@ print '# of trainable_vars : ', len(tf.trainable_variables())
 # Gradient Computation
 # make a grad computation op and an assign_add op
 tf_lr = tf.placeholder( 'float', shape=[], name='learning_rate' )
-tensorflow_opt = tf.train.RMSPropOptimizer( tf_lr )
-# tensorflow_opt = tf.train.AdamOptimizer( tf_lr )
+# tensorflow_opt = tf.train.RMSPropOptimizer( tf_lr )
+tensorflow_opt = tf.train.AdamOptimizer( tf_lr )
 
 
 trainable_vars = tf.trainable_variables()
@@ -269,6 +264,7 @@ tf_batch_success_ratio = tf.placeholder( 'float', shape=[], name='batch_success_
 tf.summary.scalar( 'batch_success_ratio', tf_batch_success_ratio )
 
 
+
 #
 # Init Tensorflow - Xavier initializer, session
 tensorflow_session = tf.Session()
@@ -305,15 +301,6 @@ else:
 
 
 
-#
-# Plotter - pyqtgraph
-# plt.ion()
-plt_pos_writer_file = PARAM_tensorboard_prefix+'/pos_'+str(max(0,PARAM_restore_iteration_number) )
-plt_neg_writer_file = PARAM_tensorboard_prefix+'/neg_'+str(max(0,PARAM_restore_iteration_number) )
-print tcolor.HEADER, 'Open file ', plt_pos_writer_file, ' to write positive losses for each mini-batch for every iteration', tcolor.ENDC
-print tcolor.HEADER, 'Open file ', plt_neg_writer_file, ' to write negative losses for each mini-batch for every iteration', tcolor.ENDC
-plt_pos_writer = open( plt_pos_writer_file , 'w+', 0 )
-plt_neg_writer = open( plt_neg_writer_file , 'w+', 0 )
 
 
 
@@ -346,7 +333,7 @@ while True:
     n_zero_tff_costs = 0 #Number of zero-costs in this batch
     veri_total = 0.0; veri_fit=0.0; veri_reg=0.0
     # accumulate gradient
-    for i_minibatch in range(mini_batch):
+    for _ in range(mini_batch):
         im_batch, label_batch = app.step(16)
         while im_batch == None: #if queue not sufficiently filled, try again
             im_batch, label_batch = app.step(16)
@@ -365,31 +352,19 @@ while True:
         # _dis_q_P, _dis_q_N, _cost = verify_cost( tff_word, nP, nN, margin )
         # print tff_cost, _cost
         # tff_cost, _grad_, tff_cc_cost, regloss = tensorflow_session.run( [tf_cost, accum_op, accum_cc_cost_op, regularization_loss], feed_dict=feed_dict)
-        tff_cost, tff_fit, tff_regloss, tff_pos_set_dev, tff_cu_cost, tff_cu_fit, tff_cu_regloss, tff_cu_dev, _grad_, tff_dot_q_P, tff_dot_q_N = tensorflow_session.run( [tf_cost, fitting_loss, regularization_loss,  pos_set_dev, accum_tf_cost, accum_fit_loss, accum_reg_loss, accum_pos_set_dev, accum_op, vgg_obj.dot_q_P, vgg_obj.dot_q_N ], feed_dict=feed_dict )
+        tff_cost, tff_fit, tff_regloss, tff_pos_set_dev, tff_cu_cost, tff_cu_fit, tff_cu_regloss, tff_cu_dev, _grad_ = tensorflow_session.run( [tf_cost, fitting_loss, regularization_loss,  pos_set_dev, accum_tf_cost, accum_fit_loss, accum_reg_loss, accum_pos_set_dev, accum_op ], feed_dict=feed_dict )
         veri_total += tff_cost
         veri_fit   += tff_fit
         veri_reg   += tff_regloss
 
-        if tff_fit <= 0.001:
+        if tff_fit < 2.0:
             n_zero_tff_costs = n_zero_tff_costs + 1
-
-        if i_minibatch >= 0:
-            # print '%3d Pos' %(tf_iteration), tff_dot_q_P
-            # print '%3d Neg' %(tf_iteration), tff_dot_q_N
-            # plt.subplot( 4,6, i_minibatch+1)
-            # plt.plot( np.ones(tff_dot_q_P.shape[0])*tf_iteration, tff_dot_q_P, 'g+' )
-            # plt.plot( np.ones(tff_dot_q_N.shape[0])*tf_iteration, tff_dot_q_N, 'r.' )
-
-            plt_pos_writer.write( '%d %d %s\n' %(tf_iteration,i_minibatch, str(tff_dot_q_P).replace('\n', ' ')[1:-1]) )
-            plt_neg_writer.write( '%d %d %s\n' %(tf_iteration,i_minibatch, str(tff_dot_q_N).replace('\n', ' ')[1:-1]) )
-
-        # plt.pause( 0.05 )
 
         print tcolor.OKBLUE, '%4.3f' %(tff_fit), tcolor.ENDC,
         print  tcolor.UNDERLINE, '(%4.3f)' %(tff_pos_set_dev), tcolor.ENDC,
     print
 
-    cur_lr = get_learning_rate(tf_iteration, 0.0001)
+    cur_lr = get_learning_rate(tf_iteration, 0.0009)
     _, summary_exec,_ = tensorflow_session.run( [train_step,summary_op,tf_batch_success_ratio], feed_dict={tf_lr: cur_lr, tf_batch_success_ratio:n_zero_tff_costs } )
 
     # print '%3d(%8.2fms) : cost=%-8.3f cc_cost=%-8.3f fit_loss=%-8.6f reg_loss=%-8.3f n_zero_costs=%d/%d' %(tf_iteration, 1000.*(time.time() - startTime), mbatch_total_cost, tff_cc_cost, (tff_cc_cost-regloss*mini_batch), regloss*mini_batch, n_zero_tff_costs, mini_batch)
