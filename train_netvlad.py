@@ -19,6 +19,7 @@ import tensorflow.contrib.slim as slim
 
 from PandaRender import NetVLADRenderer
 from CartWheelFlow import VGGDescriptor
+from TimeMachineRender import TimeMachineRender
 
 #
 import TerminalColors
@@ -39,7 +40,7 @@ def parse_cmd_args():
                                     active only when restoring")
 
     parser.add_argument("-wsu", "--write_summary", help="Write summary after every N iteration (default:5)")
-    parser.add_argument("-wmo", "--write_tf_model", help="Write tf model after every N iteration (default:500)")
+    parser.add_argument("-wmo", "--write_tf_model", help="Write tf model after every N iteration (default:250)")
     args = parser.parse_args()
 
 
@@ -64,7 +65,7 @@ def parse_cmd_args():
     if args.write_tf_model:
         write_tf_model = int(args.write_tf_model) #TODO: check this is not negative or zero
     else:
-        write_tf_model = 500
+        write_tf_model = 250
 
 
     if args.model_restore:
@@ -179,11 +180,16 @@ print tcolor.HEADER, 'restore_iteration_n    : ', PARAM_restore_iteration_number
 
 #
 # Tensorflow - VGG16-NetVLAD Word
-tf_x = tf.placeholder( 'float', [16,240,320,3], name='x' ) #this has to be 3 if training with color images
+nP = 9
+nN = 9
+margin = 0.1#10.0
+scale_gamma = 0.07
+learning_batch_size = 1+nP+nN #Note: nP and nN is not well tested with pandarenderer. However it is ok with timemachine renderer
+tf_x = tf.placeholder( 'float', [learning_batch_size,240,320,3], name='x' ) #this has to be 3 if training with color images
 is_training = tf.placeholder( tf.bool, [], name='is_training')
 
 
-vgg_obj = VGGDescriptor(K=64, D=256, N=60*80)
+vgg_obj = VGGDescriptor(K=64, D=256, N=60*80, b=learning_batch_size)
 tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
 
 
@@ -191,16 +197,13 @@ tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
 # Tensorflow - Cost function (Triplet Loss)
 # fitting_loss = 0
 
-nP = 5
-nN = 10
-margin = 0.1#10.0
-scale_gamma = 0.07
+
 # fitting_loss = vgg_obj.svm_hinge_loss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
 # fitting_loss = vgg_obj.soft_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #keep margin as 10
 fitting_loss = vgg_obj.soft_angular_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #margin as 0.2
 pos_set_dev = vgg_obj.positive_set_std_dev( tf_vlad_word, nP=nP, nN=nN, scale_gamma=scale_gamma )
 regularization_loss = tf.add_n( slim.losses.get_regularization_losses() )
-tf_cost = regularization_loss + fitting_loss #+ pos_set_dev
+tf_cost = regularization_loss + fitting_loss + pos_set_dev
 
 for vv in tf.trainable_variables():
     print 'name=', vv.name, 'shape=' ,vv.get_shape().as_list()
@@ -308,8 +311,8 @@ else:
 #
 # Plotter - pyqtgraph
 # plt.ion()
-plt_pos_writer_file = PARAM_tensorboard_prefix+'/pos_'+str(max(0,PARAM_restore_iteration_number) )
-plt_neg_writer_file = PARAM_tensorboard_prefix+'/neg_'+str(max(0,PARAM_restore_iteration_number) )
+plt_pos_writer_file = PARAM_tensorboard_prefix+'/pos_'+str(max(0,tf_iteration) )
+plt_neg_writer_file = PARAM_tensorboard_prefix+'/neg_'+str(max(0,tf_iteration) )
 print tcolor.HEADER, 'Open file ', plt_pos_writer_file, ' to write positive losses for each mini-batch for every iteration', tcolor.ENDC
 print tcolor.HEADER, 'Open file ', plt_neg_writer_file, ' to write negative losses for each mini-batch for every iteration', tcolor.ENDC
 plt_pos_writer = open( plt_pos_writer_file , 'w+', 0 )
@@ -320,7 +323,12 @@ plt_neg_writer = open( plt_neg_writer_file , 'w+', 0 )
 #
 # Setup NetVLAD Renderer - This renderer is custom made for NetVLAD training.
 # It renderers 16 images at a time. 1st im is query image. Next nP images are positive samples. Next nN samples are negative samples
-app = NetVLADRenderer()
+# app = NetVLADRenderer()
+
+TTM_BASE = 'data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
+app = TimeMachineRender(TTM_BASE)
+n_positives = nP #5
+n_negatives = nN #10
 #TODO: Make the per iterations positive samples and negative samples settable from here. possibly as Arguments
 # to the constructor. Using nP nN define above.
 
@@ -347,9 +355,9 @@ while True:
     veri_total = 0.0; veri_fit=0.0; veri_reg=0.0
     # accumulate gradient
     for i_minibatch in range(mini_batch):
-        im_batch, label_batch = app.step(16)
+        im_batch, label_batch = app.step(nP=n_positives, nN=n_negatives)
         while im_batch == None: #if queue not sufficiently filled, try again
-            im_batch, label_batch = app.step(16)
+            im_batch, label_batch = app.step(nP=5, nN=10)
 
         im_batch_normalized = normalize_batch( im_batch )
         # im_batch_normalized = normalize_batch_gray( im_batch )

@@ -616,23 +616,31 @@ class VGGDescriptor:
 
     # vggnet16. is_training is a placeholder boolean
     def vgg16( self, inputs, is_training ):
+
+        u = [64, 128] #original
+        m = [3,3,3] #original
+
+        # lite
+        # u = [16,32]
+        # m = [7,5,3] #mask sizes
+
         with slim.arg_scope([slim.conv2d, slim.fully_connected],\
                           activation_fn=tf.nn.relu,\
                           weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),\
-                          weights_regularizer=slim.l2_regularizer(0.00000000001),
+                          weights_regularizer=slim.l2_regularizer(0.000005),
                           normalizer_fn=slim.batch_norm, \
                           normalizer_params={'is_training':is_training, 'decay': 0.9, 'updates_collections': None, 'scale': True}\
                           ):
             # tf.summary.histogram( 'xxxx_inputs', inputs )
-            net = slim.repeat(inputs, 2, slim.conv2d, 64, [3, 3], scope='conv1') #64
+            net = slim.repeat(inputs, 2, slim.conv2d, u[0], [m[0], m[0]], scope='conv1') #u=64 m=[3,3]
             # tf.summary.histogram( 'xxxx_blk1', net )
             net = slim.max_pool2d(net, [2, 2], scope='pool1')
-            net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], scope='conv2') #128
+            net = slim.repeat(net, 2, slim.conv2d, u[1], [m[1], m[1]], scope='conv2') #u=128, m=[3,3]
             # tf.summary.histogram( 'xxxx_blk2', net )
             net = slim.max_pool2d(net, [2, 2], scope='pool2')
 
             # net = slim.repeat(net, 1, slim.conv2d, self.D, [3, 3], scope='conv3')    #with relu and with BN
-            net = slim.conv2d( net, self._D, [3,3], activation_fn=None, scope='conv3' ) #256 #w/o relu at the end. with BN. #TODO Possibly also remove BN from last one
+            net = slim.conv2d( net, self._D, [m[2],m[2]], activation_fn=None, scope='conv3' ) #256 #w/o relu at the end. with BN. #TODO Possibly also remove BN from last one
             # tf.summary.histogram( 'xxxx_blk3', net )
 
             # net is now 16x60x80x256. If this changes. Need to change self.N (which is currently 60*80) accordingly
@@ -644,6 +652,10 @@ class VGGDescriptor:
             sh = tf.shape(net)
             net = tf.reshape( net, [sh[0], sh[1]*sh[2] ]) # retrns 16x64*256
             net = tf.nn.l2_normalize( net, dim=1, name='normalization' )
+
+            # power normalization
+            # net = tf.multiply( tf.sign(net), tf.pow( tf.abs(net),  tf.constant(0.5) ) )
+            # net = tf.nn.l2_normalize( net, dim=1, name='normalization2' )
             return net
             # -------- ENDC ------- #
 
@@ -863,7 +875,8 @@ class VGGDescriptor:
         vec_of_1_256 = []
         for bi in range(b):
             diff_slice = tf.slice( diff_scaled, [bi*N,0], [N, D] )
-            vec_of_1_256.append( tf.reduce_sum( diff_slice, axis=0 ) )
+            # vec_of_1_256.append( tf.reduce_sum( diff_slice, axis=0 ) )
+            vec_of_1_256.append( tf.multiply( 1.0/N, tf.reduce_sum( diff_slice, axis=0 ) ) )
             #TODO: Try reduce_mean here. (As suggested in 'All About VLAD' paper)
 
 

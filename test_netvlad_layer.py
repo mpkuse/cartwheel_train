@@ -179,14 +179,14 @@ def normalize_batch( im_batch ):
 # test - looking at assignment of cluster. I have a doubt that the assignment is too soft (19th June, 2017)
 
 # np.random.seed(1)
-im_batch_size = 2
+im_batch_size = 10
 XX = np.zeros( (im_batch_size,240,320,3) )
 for i in range(im_batch_size):
-    nx = 780+2*i
+    nx = 600+2*i
     # nx = np.random.randint(1000)
 
     im_file_name = 'tf.logs/netvlad_k48/db_xl/im/%d.jpg' %(nx)
-    im_file_name = 'other_seqs/FAB_MAP_IJRR2008_DATA/City_Centre/Images/%04d.jpg' %(nx)
+    # im_file_name = 'other_seqs/FAB_MAP_IJRR2008_DATA/City_Centre/Images/%04d.jpg' %(nx)
     print 'Reading : ', im_file_name
     XX[i,:,:,:] = cv2.resize( cv2.imread( im_file_name ), (320,240) )
 y = normalize_batch( XX )
@@ -211,7 +211,9 @@ else: # load from a trained model
     tensorflow_saver = tf.train.Saver()
     # PARAM_model_restore = 'tf.logs/netvlad_angular_loss_w_mini_dev/model-4000'
     # PARAM_model_restore = 'tf.logs/netvlad_k48/model-13000'
-    PARAM_model_restore = 'tf.logs/netvlad_k64_znormed/model-1500'
+    # PARAM_model_restore = 'tf.logs/netvlad_k64_znormed/model-2000' # trained from 3d model z-normalize R,G,B individual,
+    PARAM_model_restore = 'tf.logs/netvlad_k64_tokyoTM/model-2500'
+
     print tcolor.OKGREEN,'Restore model from : ', PARAM_model_restore, tcolor.ENDC
     tensorflow_saver.restore( sess, PARAM_model_restore )
 

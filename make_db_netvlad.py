@@ -5,6 +5,11 @@
 
     Author  : Manohar Kuse <mpkuse@ust.hk>
     Created : 24th Jan, 2017
+
+    Note on 28th June, 2017
+    This script was modifed to get data from TimeMachineRender (street view)
+    to create a dataset. Look at the code before excuting. There are plenty of comments floating around :P
+
 """
 import cv2
 import numpy as np
@@ -20,6 +25,8 @@ import tensorflow.contrib.slim as slim
 from tensorflow.contrib.tensorboard.plugins import projector #for t-SNE visualization
 
 from PandaRender import TrainRenderer
+from TimeMachineRender import TimeMachineRender
+
 from CartWheelFlow import VGGDescriptor
 
 from annoy import AnnoyIndex
@@ -32,11 +39,12 @@ tcolor = TerminalColors.bcolors()
 
 #TODO: Write a function to parse arguments
 # PARAM_MODEL = 'tf.logs/netvlad_inp_normed_angular_loss/model-4000' #rememebr to set K=32
-PARAM_MODEL = 'tf.logs/netvlad_k48/model-13000' #remember to set K=48 (48 clusters) for VGGDescriptor
+# PARAM_MODEL = 'tf.logs/netvlad_k48/model-13000' #remember to set K=48 (48 clusters) for VGGDescriptor
+PARAM_MODEL = 'tf.logs/netvlad_k64_tokyoTM/model-3500'
 sl = PARAM_MODEL.rfind( '/' )
 PARAM_DB_PREFIX = PARAM_MODEL[:sl] + '/db_xl/'
 PARAM_BATCHSIZE = 16 #usually less than 16
-PARAM_N_RENDERS = 50000
+PARAM_N_RENDERS = 8000
 
 print tcolor.HEADER, 'PARAM_MODEL     : ', PARAM_MODEL, tcolor.ENDC
 print tcolor.HEADER, 'PARAM_DB_PREFIX : ', PARAM_DB_PREFIX, tcolor.ENDC
@@ -63,17 +71,26 @@ def rgbnormalize( im ):
 
     return out_im
 
+## M is a 2D matrix
+def zNormalize(M):
+    return (M-M.mean())/(M.std()+0.0001)
 
 def normalize_batch( im_batch ):
     im_batch_normalized = np.zeros(im_batch.shape)
     for b in range(im_batch.shape[0]):
-        im_batch_normalized[b,:,:,:] = rgbnormalize( im_batch[b,:,:,:] )
+        im_batch_normalized[b,:,:,0] = zNormalize( im_batch[b,:,:,0])
+        im_batch_normalized[b,:,:,1] = zNormalize( im_batch[b,:,:,1])
+        im_batch_normalized[b,:,:,2] = zNormalize( im_batch[b,:,:,2])
+        # im_batch_normalized[b,:,:,:] = rgbnormalize( im_batch[b,:,:,:] )
     return im_batch_normalized
 
 
 #
 # Init Renderer - Using this renderer as we want a few random poses to make a DB
-app = TrainRenderer()
+#app = TrainRenderer() #hkust 3d model
+
+TTM_BASE = 'data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
+app = TimeMachineRender( TTM_BASE )
 
 
 #
@@ -82,7 +99,7 @@ tf_x = tf.placeholder( 'float', [None,240,320,3], name='x' )
 is_training = tf.placeholder( tf.bool, [], name='is_training')
 
 
-vgg_obj = VGGDescriptor(K=48)
+vgg_obj = VGGDescriptor(K=64)
 tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
 
 
@@ -119,7 +136,8 @@ for itr in range(PARAM_N_RENDERS):
     im_batch = None
     label_batch = None
     while im_batch==None:
-        im_batch, label_batch = app.step(batch_size)
+        # im_batch, label_batch = app.step(batch_size)
+        im_batch, label_batch = app.step_random(batch_size)
 
     im_batch_normalized = normalize_batch( im_batch )
 
