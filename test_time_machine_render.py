@@ -13,8 +13,9 @@ tm = TimeMachineRender( TTM_BASE )
 pyDB = tm.pyDB
 # tm.debug_display_image_samples()
 for i in range(100):
-    a,b = tm.step(5,5)
+    a,b = tm.step(5,5, return_gray=True)
     cv2.waitKey(0)
+    code.interact( local=locals() )
     # a,b = tm.step_random(7)
 
 # app = NetVLADRenderer()

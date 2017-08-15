@@ -144,9 +144,11 @@ def rgbnormalize( im ):
 def normalize_batch( im_batch ):
     im_batch_normalized = np.zeros(im_batch.shape)
     for b in range(im_batch.shape[0]):
-        im_batch_normalized[b,:,:,0] = zNormalize( im_batch[b,:,:,0])
-        im_batch_normalized[b,:,:,1] = zNormalize( im_batch[b,:,:,1])
-        im_batch_normalized[b,:,:,2] = zNormalize( im_batch[b,:,:,2])
+        for ch in range(im_batch.shape[3]):
+                im_batch_normalized[b,:,:,ch] = zNormalize( im_batch[b,:,:,ch])
+        # im_batch_normalized[b,:,:,0] = zNormalize( im_batch[b,:,:,0])
+        # im_batch_normalized[b,:,:,1] = zNormalize( im_batch[b,:,:,1])
+        # im_batch_normalized[b,:,:,2] = zNormalize( im_batch[b,:,:,2])
         # im_batch_normalized[b,:,:,:] = rgbnormalize( im_batch_normalized[b,:,:,:] )
 
     # cv2.imshow( 'org_', (im_batch[0,:,:,:]).astype('uint8') )
@@ -155,12 +157,7 @@ def normalize_batch( im_batch ):
     # code.interact(local=locals())
     return im_batch_normalized
 
-#note that `im_batch` is still a batch of color images need to make them to gray scale and then normalize
-def normalize_batch_gray( im_batch ):
-    #input : 16x240x320x3
-    im_batch_gray = np.mean( im_batch, axis=3, keepdims=True ) / 255.0 #16x240x320x1
-    # code.interact( local=locals() )
-    return im_batch_gray
+
 
 #
 # Parse Commandline
@@ -180,8 +177,8 @@ print tcolor.HEADER, 'restore_iteration_n    : ', PARAM_restore_iteration_number
 
 #
 # Tensorflow - VGG16-NetVLAD Word
-nP = 9
-nN = 9
+nP = 8
+nN = 8
 margin = 0.1#10.0
 scale_gamma = 0.07
 learning_batch_size = 1+nP+nN #Note: nP and nN is not well tested with pandarenderer. However it is ok with timemachine renderer
@@ -355,12 +352,11 @@ while True:
     veri_total = 0.0; veri_fit=0.0; veri_reg=0.0
     # accumulate gradient
     for i_minibatch in range(mini_batch):
-        im_batch, label_batch = app.step(nP=n_positives, nN=n_negatives)
+        im_batch, label_batch = app.step(nP=n_positives, nN=n_negatives, return_gray=False)
         while im_batch == None: #if queue not sufficiently filled, try again
-            im_batch, label_batch = app.step(nP=5, nN=10)
+            im_batch, label_batch = app.step(nP=n_positives, nN=n_negatives, return_gray=False)
 
         im_batch_normalized = normalize_batch( im_batch )
-        # im_batch_normalized = normalize_batch_gray( im_batch )
 
         #remember to set tf_x to 16,240,320,1 if using grays or to 16,240,320,3 if using 3-channels
 
