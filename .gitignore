@@ -42,3 +42,4 @@ other_seqs
 *.npz
 all_models
 data_Akihiko_Torii*
+keezi_walks*

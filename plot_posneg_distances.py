@@ -71,8 +71,8 @@ for i in range( 0, P.shape[0], SKIP ):
     if ITER_ > 0 and tf_iteration != ITER_:
         continue
 
-    tff_dot_q_P = P[i,2:]
-    tff_dot_q_N = N[i,2:]
+    tff_dot_q_P = 1.01-P[i,2:]
+    tff_dot_q_N = 1.01-N[i,2:]
 
     if PLOT_ < 0: # plot all
         # Multiple
@@ -84,12 +84,19 @@ for i in range( 0, P.shape[0], SKIP ):
         # Single
         if batch_i == PLOT_:
             plt.ylim( 0, 2 )
+            if i == 0:
+                plt.plot( np.ones(tff_dot_q_P.shape[0])*tf_iteration, tff_dot_q_P, 'g+', label=r'$\langle \eta_q, \eta_{P_i} \rangle$' )
+                plt.plot( np.ones(tff_dot_q_N.shape[0])*tf_iteration, tff_dot_q_N, 'r.', label=r'$\langle \eta_q, \eta_{N_i} \rangle$' )
+
             plt.plot( np.ones(tff_dot_q_P.shape[0])*tf_iteration, tff_dot_q_P, 'g+' )
             plt.plot( np.ones(tff_dot_q_N.shape[0])*tf_iteration, tff_dot_q_N, 'r.' )
 
 
 
 
-
-
+plt.legend( loc='top right' , prop={'size': 28})
+plt.xticks(fontsize=22, rotation=60)
+plt.yticks(fontsize=22, rotation=90)
+plt.xlabel( 'Learning Iterations', fontsize=22 )
+plt.ylim( 0, 1)
 plt.show()

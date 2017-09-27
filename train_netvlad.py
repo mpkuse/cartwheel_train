@@ -20,6 +20,7 @@ import tensorflow.contrib.slim as slim
 from PandaRender import NetVLADRenderer
 from CartWheelFlow import VGGDescriptor
 from TimeMachineRender import TimeMachineRender
+from WalksRenderer import WalksRenderer
 
 #
 import TerminalColors
@@ -322,8 +323,13 @@ plt_neg_writer = open( plt_neg_writer_file , 'w+', 0 )
 # It renderers 16 images at a time. 1st im is query image. Next nP images are positive samples. Next nN samples are negative samples
 # app = NetVLADRenderer()
 
-TTM_BASE = 'data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
-app = TimeMachineRender(TTM_BASE)
+#TTM_BASE = 'data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
+#app = TimeMachineRender(TTM_BASE)
+
+
+WALKS_BASE = './keezi_walks/'
+app = WalksRenderer( WALKS_BASE )
+
 n_positives = nP #5
 n_negatives = nN #10
 #TODO: Make the per iterations positive samples and negative samples settable from here. possibly as Arguments

@@ -7,6 +7,17 @@ import code
 
 from TimeMachineRender import TimeMachineRender
 from PandaRender import NetVLADRenderer
+from WalksRenderer import WalksRenderer
+
+
+WR_BASE = './keezi_walks/'
+wr = WalksRenderer( WR_BASE )
+a,b = wr.step(nP=10, nN=10)
+print a.shape
+print b.shape
+cv2.waitKey(0)
+quit()
+
 
 TTM_BASE = 'data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
 tm = TimeMachineRender( TTM_BASE )
