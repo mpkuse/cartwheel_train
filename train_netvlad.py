@@ -187,7 +187,7 @@ tf_x = tf.placeholder( 'float', [learning_batch_size,240,320,3], name='x' ) #thi
 is_training = tf.placeholder( tf.bool, [], name='is_training')
 
 
-vgg_obj = VGGDescriptor(K=64, D=256, N=60*80, b=learning_batch_size)
+vgg_obj = VGGDescriptor(K=32, D=256, N=60*80, b=learning_batch_size)
 tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
 
 
@@ -323,12 +323,12 @@ plt_neg_writer = open( plt_neg_writer_file , 'w+', 0 )
 # It renderers 16 images at a time. 1st im is query image. Next nP images are positive samples. Next nN samples are negative samples
 # app = NetVLADRenderer()
 
-#TTM_BASE = 'data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
-#app = TimeMachineRender(TTM_BASE)
+TTM_BASE = 'data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
+app = TimeMachineRender(TTM_BASE)
 
 
-WALKS_BASE = './keezi_walks/'
-app = WalksRenderer( WALKS_BASE )
+# WALKS_BASE = './keezi_walks/'
+# app = WalksRenderer( WALKS_BASE )
 
 n_positives = nP #5
 n_negatives = nN #10
