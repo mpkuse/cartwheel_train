@@ -626,7 +626,7 @@ class VGGDescriptor:
 
 
 
-        # Original - VGG
+        # # Original - VGG
         # with slim.arg_scope([slim.conv2d, slim.fully_connected],\
         #                   activation_fn=tf.nn.relu,\
         #                   weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),\
@@ -645,6 +645,7 @@ class VGGDescriptor:
         #     # net = slim.repeat(net, 1, slim.conv2d, self.D, [3, 3], scope='conv3')    #with relu and with BN
         #     net = slim.conv2d( net, self._D, [m[2],m[2]], activation_fn=None, scope='conv3' ) #256 #w/o relu at the end. with BN. #TODO Possibly also remove BN from last one
         #     # tf.summary.histogram( 'xxxx_blk3', net )
+
 
 
         # ResNet - mini
@@ -675,7 +676,6 @@ class VGGDescriptor:
             # tf.summary.histogram( 'xxxx_blk3', net )
 
             # net is now 16x60x80x256. If this changes. Need to change self.N (which is currently 60*80) accordingly
-
 
             # ------ NetVLAD ------ #
             net = self.netvlad_layer( net ) #16x64x256, used 32 cluster instead of 64 for computation reason

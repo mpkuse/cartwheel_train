@@ -8,7 +8,16 @@ import code
 from TimeMachineRender import TimeMachineRender
 from PandaRender import NetVLADRenderer
 from WalksRenderer import WalksRenderer
+from PittsburgRenderer import PittsburgRenderer
 
+PTS_BASE = '/media/mpkuse/Bulk_Data/data_Akihiko_Torii/Pitssburg/'
+pr = PittsburgRenderer( PTS_BASE )
+for i in range(20):
+    a,b = pr.step(nP=10, nN=10)
+    print a.shape
+    print b.shape
+    cv2.waitKey(0)
+quit()
 
 WR_BASE = './keezi_walks/'
 wr = WalksRenderer( WR_BASE )
