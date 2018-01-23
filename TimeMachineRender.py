@@ -15,7 +15,7 @@
 import scipy.io #for reading .mat files
 import numpy as np
 #import matplotlib.pyplot as plt
-import pyqtgraph as pg
+# import pyqtgraph as pg
 import time
 import cv2
 import code
@@ -147,7 +147,6 @@ class TimeMachineRender:
     #   b) generate 2*n ``loc_idx, choose(yr_idx), im_idx + choose(-1,0,1)``
     #   c) choose n-2 out of these 2*n
     def _similar( self, n, loc_idx, yr_idx, im_idx ):
-        toreturn = []
         pyDB = self.pyDB
         randint = np.random.randint # randint( 10 ) #will give an integer between 0 and 10
 
@@ -163,6 +162,7 @@ class TimeMachineRender:
         A = []
         r_p = ( loc_idx, yr_idx, ( (im_idx+1) % len(im_list)) )
         r_n = ( loc_idx, yr_idx, ( (im_idx-1) % len(im_list)) )
+
         A.append( r_p )
         A.append( r_n )
         # print 'ret', r_p
@@ -196,12 +196,15 @@ class TimeMachineRender:
 
         # Choose n-2 from B
         import random
-        C = random.sample( B, n-2 )
+        if n>2:
+            C = random.sample( B, n-2 )
+        else :
+            C = []
+
 
         return A + C
 
 
-        return toreturn
 
     ## Generate `n` number of images different than the given one
     def _different(self, n, loc_idx, yr_idx, im_idx ):
@@ -213,7 +216,7 @@ class TimeMachineRender:
     ## Given a set for example, L = [(25, 0, 7), (25, 0, 5), (25, 0, 6), (25, 0, 4), (25, 0, 4)]
     ## Load corresponding images. Returns a np.array of size nx240x320x3
     ## If apply_distortions is true, random distortions will be applied. Currently planar rotations with angles as Gaussian distribution centered at 0, sigma=25
-    def _get_images(self, L, apply_distortions=False, return_gray=False):
+    def _get_images(self, L, apply_distortions=False, return_gray=False, PRINTING=False):
         pyDB = self.pyDB
         A = []
         for loc_idx, yr_idx, im_idx in L:
@@ -226,7 +229,8 @@ class TimeMachineRender:
 
                 # print loc_idx, yr_idx, im_idx
                 file_name = self.TTM_BASE+'/images/'+im_name
-                # print 'imread : ', file_name
+                if PRINTING:
+                    print 'imread : ', file_name
                 # TODO blur before resizing
                 IM = cv2.resize( cv2.imread( file_name ) , (320,240)  )
                 # IM = cv2.resize( cv2.imread( file_name ) , (160,120)  )
@@ -278,7 +282,7 @@ class TimeMachineRender:
     # Gives out `nP` number of positive samples of query image. `nN` number of negative samples.
     # Note, query image is the 0th image. Next nP will be positive, next nN will be negative.
     # return_gray=True will return a (N,240,320,1), ie gray scale images
-    def step(self, nP, nN, return_gray=False):
+    def step(self, nP, nN, return_gray=False, ENABLE_IMSHOW=False):
         # np.random.seed(1)
         # Will generate a total of 1+nP+nN number of images. 1st is the query image (choosen randomly)
         # Next nP will be positive Samples. Next nN will be negative samples
@@ -292,14 +296,21 @@ class TimeMachineRender:
         # print 's : ', sims
         # print 'd : ', diffs
 
-        q_im = self._get_images( [(loc_idx, yr_idx, im_idx)], return_gray=return_gray  )
-        sims_im = self._get_images(sims, apply_distortions=True, return_gray=return_gray)
-        diffs_im = self._get_images(diffs, return_gray=return_gray)
+        PRINTING = False
+        q_im = self._get_images( [(loc_idx, yr_idx, im_idx)], return_gray=return_gray , PRINTING=PRINTING )
+        sims_im = self._get_images(sims[0:nP], apply_distortions=True, return_gray=return_gray, PRINTING=PRINTING)
+        diffs_im = self._get_images(diffs, return_gray=return_gray, PRINTING=PRINTING)
 
-        cv2.imshow( 'q_im', np.concatenate( q_im, axis=1)[:,:,::-1] )
-        cv2.imshow( 'sims_im', np.concatenate( sims_im, axis=1)[:,:,::-1] )
-        cv2.imshow( 'diffs_im', np.concatenate( diffs_im, axis=1)[:,:,::-1] )
-        cv2.waitKey(1)
+
+        # print q_im.shape
+        # print sims_im.shape
+        # print diffs_im.shape
+        if ENABLE_IMSHOW:
+
+            cv2.imshow( 'q_im', np.concatenate( q_im, axis=1)[:,:,::-1] )
+            cv2.imshow( 'sims_im', np.concatenate( sims_im, axis=1)[:,:,::-1] )
+            cv2.imshow( 'diffs_im', np.concatenate( diffs_im, axis=1)[:,:,::-1] )
+            cv2.waitKey(1)
 
         return np.concatenate( (q_im, sims_im, diffs_im), axis=0 ).astype('float32'), np.zeros( (16,4) )
 

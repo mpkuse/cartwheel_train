@@ -15,7 +15,6 @@
 
 import numpy as np
 #import matplotlib.pyplot as plt
-import pyqtgraph as pg
 import time
 import cv2
 import code

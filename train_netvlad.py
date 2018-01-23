@@ -2,6 +2,10 @@
         Basic idea is to learn a 16D representation. Cost function being the
         triplet ranking loss
 
+        Added code for pairwise loss
+
+
+
         Author  : Manohar Kuse <mpkuse@ust.hk>
         Created : 12th Jan, 2017
 """
@@ -17,7 +21,7 @@ import argparse
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
-from PandaRender import NetVLADRenderer
+# from PandaRender import NetVLADRenderer
 from CartWheelFlow import VGGDescriptor
 from TimeMachineRender import TimeMachineRender
 from WalksRenderer import WalksRenderer
@@ -26,7 +30,7 @@ from WalksRenderer import WalksRenderer
 import TerminalColors
 tcolor = TerminalColors.bcolors()
 
-import pyqtgraph as pg
+# import pyqtgraph as pg
 
 def parse_cmd_args():
     """Parse Arguments"""
@@ -177,30 +181,45 @@ print tcolor.HEADER, 'restore_iteration_n    : ', PARAM_restore_iteration_number
 
 
 #
-# Tensorflow - VGG16-NetVLAD Word
+# Runtime Parameters
 nP = 8
 nN = 8
-margin = 0.1#10.0
+margin = 0.1
 scale_gamma = 0.07
+MINI_BATCH_SIZE = 24
+NET_TYPE = "resnet6" #currently ["vgg6", "resnet6"]
+ENABLE_POS_SET_DEV = True
+
+#
+# Tensorflow - NetVLAD Word
 learning_batch_size = 1+nP+nN #Note: nP and nN is not well tested with pandarenderer. However it is ok with timemachine renderer
 tf_x = tf.placeholder( 'float', [learning_batch_size,240,320,3], name='x' ) #this has to be 3 if training with color images
 is_training = tf.placeholder( tf.bool, [], name='is_training')
 
 
-vgg_obj = VGGDescriptor(K=32, D=256, N=60*80, b=learning_batch_size)
-tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
+vgg_obj = VGGDescriptor(K=16, D=256, N=60*80, b=learning_batch_size)
+# tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
+tf_vlad_word = vgg_obj.network(tf_x, is_training, net_type=NET_TYPE )
 
 
 #
-# Tensorflow - Cost function (Triplet Loss)
-# fitting_loss = 0
+# Tensorflow - Cost function
 
-
+#--- a) Fitting Cost
 # fitting_loss = vgg_obj.svm_hinge_loss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
 # fitting_loss = vgg_obj.soft_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #keep margin as 10
 fitting_loss = vgg_obj.soft_angular_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #margin as 0.2
-pos_set_dev = vgg_obj.positive_set_std_dev( tf_vlad_word, nP=nP, nN=nN, scale_gamma=scale_gamma )
-regularization_loss = tf.add_n( slim.losses.get_regularization_losses() )
+
+#--- b) Positive Set deviation
+if ENABLE_POS_SET_DEV:
+    pos_set_dev = vgg_obj.positive_set_std_dev( tf_vlad_word, nP=nP, nN=nN, scale_gamma=scale_gamma )
+else:
+    pos_set_dev = tf.constant( 0.0 )
+
+#--- c) regularization
+regularization_loss = tf.add_n(  tf.losses.get_regularization_losses()  )
+
+
 tf_cost = regularization_loss + fitting_loss + pos_set_dev
 
 for vv in tf.trainable_variables():
@@ -272,7 +291,8 @@ tf.summary.scalar( 'batch_success_ratio', tf_batch_success_ratio )
 
 #
 # Init Tensorflow - Xavier initializer, session
-tensorflow_session = tf.Session()
+# tensorflow_session = tf.Session()
+tensorflow_session = tf.Session( config=tf.ConfigProto(log_device_placement=True, intra_op_parallelism_threads=1, inter_op_parallelism_threads=1) )
 
 
 #
@@ -353,13 +373,13 @@ while True:
 
     tensorflow_session.run([zero_op,zero_tf_cost,zero_fit_loss,zero_reg_loss,zero_pos_set_dev]) #set gradient_cummulator and cost_cummulator to zero
 
-    mini_batch = 24
+    mini_batch = MINI_BATCH_SIZE
     n_zero_tff_costs = 0 #Number of zero-costs in this batch
     veri_total = 0.0; veri_fit=0.0; veri_reg=0.0
     # accumulate gradient
     for i_minibatch in range(mini_batch):
         im_batch, label_batch = app.step(nP=n_positives, nN=n_negatives, return_gray=False)
-        while im_batch == None: #if queue not sufficiently filled, try again
+        while im_batch is None: #if queue not sufficiently filled, try again
             im_batch, label_batch = app.step(nP=n_positives, nN=n_negatives, return_gray=False)
 
         im_batch_normalized = normalize_batch( im_batch )
@@ -371,15 +391,19 @@ while True:
                      is_training:True,\
                      vgg_obj.initial_t: 0
                     }
+
+
+
+        # print 'tf.run()', i_minibatch, im_batch.shape, im_batch_normalized.shape
         # tff_cost, tff_word, _grad_ = tensorflow_session.run( [tf_cost, tf_vlad_word, accum_op], feed_dict=feed_dict)
         # _dis_q_P, _dis_q_N, _cost = verify_cost( tff_word, nP, nN, margin )
         # print tff_cost, _cost
         # tff_cost, _grad_, tff_cc_cost, regloss = tensorflow_session.run( [tf_cost, accum_op, accum_cc_cost_op, regularization_loss], feed_dict=feed_dict)
         tff_cost, tff_fit, tff_regloss, tff_pos_set_dev, tff_cu_cost, tff_cu_fit, tff_cu_regloss, tff_cu_dev, _grad_, tff_dot_q_P, tff_dot_q_N = tensorflow_session.run( [tf_cost, fitting_loss, regularization_loss,  pos_set_dev, accum_tf_cost, accum_fit_loss, accum_reg_loss, accum_pos_set_dev, accum_op, vgg_obj.dot_q_P, vgg_obj.dot_q_N ], feed_dict=feed_dict )
-        veri_total += tff_cost
-        veri_fit   += tff_fit
-        veri_reg   += tff_regloss
-
+        # veri_total += tff_cost
+        # veri_fit   += tff_fit
+        # veri_reg   += tff_regloss
+        # print 'done tf.run()', i_minibatch
         if tff_fit <= 0.001:
             n_zero_tff_costs = n_zero_tff_costs + 1
 

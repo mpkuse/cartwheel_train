@@ -16,7 +16,7 @@
 import scipy.io #for reading .mat files
 import numpy as np
 #import matplotlib.pyplot as plt
-import pyqtgraph as pg
+# import pyqtgraph as pg
 import time
 import cv2
 import code
