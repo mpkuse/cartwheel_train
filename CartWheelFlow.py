@@ -799,10 +799,28 @@ class VGGDescriptor:
     #     self.tf_dis_q_N = tf_dis_q_N
     #     return hinged_cost
 
-    ## The words are l2_normalized. Comparison with dot product as against
-    ## squared distance earlier with soft_ploss()
-    def soft_angular_ploss( self,tf_vlad_word, nP, nN, margin ):
-        print 'Not Implemented'
+    ## The words are l2_normalized. It is exactly like the NetVLAD paper
+    ## tf_vlad_word : N x 16K
+    def weakly_supervised_ranking_loss( self,tf_vlad_word, nP, nN, margin ):
+        # print 'Not Implemented'
+        if self.TF_MAJOR_VERSION == 0:
+            sp_q, sp_P, sp_N = tf.split_v( tf_vlad_word, [1,nP,nN], 0 )
+        else:
+            sp_q, sp_P, sp_N = tf.split( tf_vlad_word, [1,nP,nN], 0 )
+        #sp_q=query; sp_P=definite_positives ; sp_N=definite_negatives
+        #q:1x16k;   P:5x16k;    N:10x16k
+
+        euc_q_P = tf.constant(1.0) - tf.reduce_sum( tf.multiply( sp_q, sp_P ), axis=1 )
+        euc_q_N = tf.constant(1.0) - tf.reduce_sum( tf.multiply( sp_q, sp_N ), axis=1 )
+        self.dot_q_P = euc_q_P
+        self.dot_q_N = euc_q_N
+
+        xS = tf.reduce_min( euc_q_P ) + tf.constant( margin )
+
+        L_vec = tf.maximum( (xS - euc_q_N), tf.constant(0.0), name='hinge_loss' )
+        L = tf.reduce_sum( L_vec )
+        return L
+
 
     ## The words are l2_normalized. Comparison with dot product as against
     ## squared distance earlier with soft_ploss()

@@ -17,6 +17,11 @@ import matplotlib.pyplot as plt
 import time
 import code
 import argparse
+import os
+import datetime
+
+from collections import OrderedDict
+import json
 
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
@@ -37,6 +42,7 @@ def parse_cmd_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("-t", "--tensorboard_prefix", help="Path for tensorboard")
     parser.add_argument("-s", "--model_save_prefix", help="Path for saving model. If not specified will be same as tensorboard_prefix")
+    parser.add_argument("-f", "--config_file", help="File name of config-file (file should be a .json)" )
     parser.add_argument("-r", "--model_restore", help="Path of model file for restore. This file path is \
                                     split(-) and last number is set as iteration count. \
                                     Absense of this will lead to xavier init")
@@ -84,8 +90,17 @@ def parse_cmd_args():
     else:
         restore_iteration_number = -1
 
+    if args.config_file:
+        # Check Existence of the file
+        if os.path.exists( args.config_file ):
+            config_filename = args.config_file
+        else:
+            print tcolor.FAIL, 'config_file does not exist. Quitting', tcolor.ENDC
+    else:
+        print tcolor.FAIL, 'config_file is required to be mentioned. Quitting', tcolor.ENDC
+        quit()
 
-    return tensorboard_prefix, write_summary, model_save_prefix, write_tf_model, model_restore, restore_iteration_number
+    return tensorboard_prefix, write_summary, model_save_prefix, write_tf_model, model_restore, restore_iteration_number, config_filename
 
 
 
@@ -168,7 +183,8 @@ def normalize_batch( im_batch ):
 # Parse Commandline
 PARAM_tensorboard_prefix, PARAM_n_write_summary, \
     PARAM_model_save_prefix, PARAM_n_write_tf_model, \
-    PARAM_model_restore, PARAM_restore_iteration_number = parse_cmd_args()
+    PARAM_model_restore, PARAM_restore_iteration_number,\
+    PARAM_config_json_filename = parse_cmd_args()
 print tcolor.HEADER, 'tensorboard_prefix     : ', PARAM_tensorboard_prefix, tcolor.ENDC
 print tcolor.HEADER, 'write_summary every    : ', PARAM_n_write_summary, 'iterations', tcolor.ENDC
 print tcolor.HEADER, 'model_save_prefix      : ', PARAM_model_save_prefix, tcolor.ENDC
@@ -176,19 +192,39 @@ print tcolor.HEADER, 'write_tf_model every   : ', PARAM_n_write_tf_model, 'itera
 
 print tcolor.HEADER, 'model_restore          : ', PARAM_model_restore, tcolor.ENDC
 print tcolor.HEADER, 'restore_iteration_n    : ', PARAM_restore_iteration_number, tcolor.ENDC
-
-
+print tcolor.HEADER, 'config_file            : ', PARAM_config_json_filename, tcolor.ENDC
 
 
 #
 # Runtime Parameters
-nP = 8
-nN = 8
-margin = 0.1
-scale_gamma = 0.07
-MINI_BATCH_SIZE = 24
-NET_TYPE = "resnet6" #currently ["vgg6", "resnet6"]
-ENABLE_POS_SET_DEV = True
+
+# Load JSON
+print 'Open JSON-config file: ', PARAM_config_json_filename
+with open( PARAM_config_json_filename ) as json_data:
+    FILE_PARAMS = json.load( json_data )
+
+nP =                 FILE_PARAMS['nP']
+nN =                 FILE_PARAMS['nN']
+margin =             FILE_PARAMS['MARGIN']
+scale_gamma =        FILE_PARAMS['SCALE_GAMMA']
+MINI_BATCH_SIZE =    FILE_PARAMS['MINI_BATCH_SIZE']
+NET_TYPE =           FILE_PARAMS['NET_TYPE'] #currently ["vgg6", "resnet6"]
+FITTING_LOSS_TYPE =  FILE_PARAMS['FITTING_LOSS_TYPE'] # currently ["soft_angular_ploss", "weakly_supervised_ranking_loss" ]
+ENABLE_POS_SET_DEV = FILE_PARAMS['ENABLE_POS_SET_DEV']
+#TODO: Validate these values. Currently working on trust that all these are OK values.
+# Dont break my trust... :).
+
+# Default code- Can Overide if need be
+# nP = 8
+# nN = 8
+# margin = 0.1
+# scale_gamma = 0.07
+# MINI_BATCH_SIZE = 24
+# NET_TYPE = "resnet6" #currently ["vgg6", "resnet6"]
+# FITTING_LOSS_TYPE = "soft_angular_ploss" # currently ["soft_angular_ploss", "weakly_supervised_ranking_loss" ]
+# ENABLE_POS_SET_DEV = True
+
+
 
 #
 # Tensorflow - NetVLAD Word
@@ -208,7 +244,13 @@ tf_vlad_word = vgg_obj.network(tf_x, is_training, net_type=NET_TYPE )
 #--- a) Fitting Cost
 # fitting_loss = vgg_obj.svm_hinge_loss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
 # fitting_loss = vgg_obj.soft_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #keep margin as 10
-fitting_loss = vgg_obj.soft_angular_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #margin as 0.2
+
+if FITTING_LOSS_TYPE == "soft_angular_ploss":
+    fitting_loss = vgg_obj.soft_angular_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #margin as 0.2
+
+if FITTING_LOSS_TYPE == "weakly_supervised_ranking_loss":
+    fitting_loss = vgg_obj.weakly_supervised_ranking_loss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #margin as 0.2
+
 
 #--- b) Positive Set deviation
 if ENABLE_POS_SET_DEV:
@@ -216,9 +258,8 @@ if ENABLE_POS_SET_DEV:
 else:
     pos_set_dev = tf.constant( 0.0 )
 
-#--- c) regularization
+#--- c) regularization. regularization gamma is set in tf.slim ie, in class VGGDescriptor
 regularization_loss = tf.add_n(  tf.losses.get_regularization_losses()  )
-
 
 tf_cost = regularization_loss + fitting_loss + pos_set_dev
 
@@ -292,7 +333,7 @@ tf.summary.scalar( 'batch_success_ratio', tf_batch_success_ratio )
 #
 # Init Tensorflow - Xavier initializer, session
 # tensorflow_session = tf.Session()
-tensorflow_session = tf.Session( config=tf.ConfigProto(log_device_placement=True, intra_op_parallelism_threads=1, inter_op_parallelism_threads=1) )
+tensorflow_session = tf.Session( config=tf.ConfigProto(log_device_placement=False, intra_op_parallelism_threads=1, inter_op_parallelism_threads=1) )
 
 
 #
@@ -335,6 +376,29 @@ print tcolor.HEADER, 'Open file ', plt_pos_writer_file, ' to write positive loss
 print tcolor.HEADER, 'Open file ', plt_neg_writer_file, ' to write negative losses for each mini-batch for every iteration', tcolor.ENDC
 plt_pos_writer = open( plt_pos_writer_file , 'w+', 0 )
 plt_neg_writer = open( plt_neg_writer_file , 'w+', 0 )
+
+
+# Write config file for later debugging (with timestamp)
+FILE_PARAMS = OrderedDict()
+FILE_PARAMS['nP'] = nP
+FILE_PARAMS['nN'] = nN
+FILE_PARAMS['MARGIN'] = margin
+FILE_PARAMS['SCALE_GAMMA'] = scale_gamma
+FILE_PARAMS['MINI_BATCH_SIZE'] = MINI_BATCH_SIZE
+FILE_PARAMS['NET_TYPE'] = NET_TYPE
+FILE_PARAMS['FITTING_LOSS_TYPE'] = FITTING_LOSS_TYPE
+FILE_PARAMS['ENABLE_POS_SET_DEV'] = ENABLE_POS_SET_DEV
+
+# Print
+for __knk in FILE_PARAMS.keys():
+    print tcolor.BOLD, __knk, tcolor.ENDC, ' : ', FILE_PARAMS[__knk]
+
+out_debug_config_filename = PARAM_tensorboard_prefix+'/config_%s.json' %( str(datetime.datetime.now()) )
+print tcolor.HEADER, 'Open file ', out_debug_config_filename, tcolor.ENDC
+with open( out_debug_config_filename , 'w' ) as fp:
+    json.dump( FILE_PARAMS, fp, indent=4 )
+
+# End writing config for debugging
 
 
 
