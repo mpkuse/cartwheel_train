@@ -13,7 +13,7 @@
 """
 
 
-import scipy.io #for reading .mat files
+# import scipy.io #for reading .mat files
 import numpy as np
 #import matplotlib.pyplot as plt
 # import pyqtgraph as pg
@@ -168,7 +168,7 @@ class PittsburgRenderer:
 
         return np.array(A)
 
-    def step( self, nP, nN, apply_distortions=True, return_gray=False ):
+    def step( self, nP, nN, apply_distortions=True, return_gray=False, ENABLE_IMSHOW=False ):
         q_tup = self._query()
         sim_tup = self._similar_to( nP, q_tup)
         dif_tup = self._different_than( nN, q_tup )
@@ -177,11 +177,12 @@ class PittsburgRenderer:
         sim_im = self._get_images( sim_tup, apply_distortions=apply_distortions, return_gray=return_gray )
         dif_im = self._get_images( dif_tup, apply_distortions=apply_distortions, return_gray=return_gray )
 
-        cv2.imshow( 'q_im', np.concatenate( q_im, axis=1)[:,:,::-1] )
-        cv2.imshow( 'sims_im', np.concatenate( sim_im, axis=1)[:,:,::-1] )
-        cv2.imshow( 'diffs_im', np.concatenate( dif_im, axis=1)[:,:,::-1] )
+        if ENABLE_IMSHOW:
+            cv2.imshow( 'q_im', np.concatenate( q_im, axis=1)[:,:,::-1] )
+            cv2.imshow( 'sims_im', np.concatenate( sim_im, axis=1)[:,:,::-1] )
+            cv2.imshow( 'diffs_im', np.concatenate( dif_im, axis=1)[:,:,::-1] )
 
-        cv2.waitKey(1)
+
 
         return np.concatenate( (q_im, sim_im, dif_im), axis=0 ).astype('float32'), np.zeros( (1+nP+nN,4) )
 

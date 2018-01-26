@@ -211,6 +211,7 @@ MINI_BATCH_SIZE =    FILE_PARAMS['MINI_BATCH_SIZE']
 NET_TYPE =           FILE_PARAMS['NET_TYPE'] #currently ["vgg6", "resnet6"]
 FITTING_LOSS_TYPE =  FILE_PARAMS['FITTING_LOSS_TYPE'] # currently ["soft_angular_ploss", "weakly_supervised_ranking_loss" ]
 ENABLE_POS_SET_DEV = FILE_PARAMS['ENABLE_POS_SET_DEV']
+PARAM_K = 16
 #TODO: Validate these values. Currently working on trust that all these are OK values.
 # Dont break my trust... :).
 
@@ -233,7 +234,7 @@ tf_x = tf.placeholder( 'float', [learning_batch_size,240,320,3], name='x' ) #thi
 is_training = tf.placeholder( tf.bool, [], name='is_training')
 
 
-vgg_obj = VGGDescriptor(K=16, D=256, N=60*80, b=learning_batch_size)
+vgg_obj = VGGDescriptor(K=PARAM_K, D=256, N=60*80, b=learning_batch_size)
 # tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
 tf_vlad_word = vgg_obj.network(tf_x, is_training, net_type=NET_TYPE )
 
@@ -253,15 +254,20 @@ if FITTING_LOSS_TYPE == "weakly_supervised_ranking_loss":
 
 
 #--- b) Positive Set deviation
-if ENABLE_POS_SET_DEV:
-    pos_set_dev = vgg_obj.positive_set_std_dev( tf_vlad_word, nP=nP, nN=nN, scale_gamma=scale_gamma )
-else:
-    pos_set_dev = tf.constant( 0.0 )
+# TODO Instead of setting this to zero, do not add it to tf_cost. This ways, it will eval to a value which can be visualized and compared.
+pos_set_dev = vgg_obj.positive_set_std_dev( tf_vlad_word, nP=nP, nN=nN, scale_gamma=scale_gamma )
+# if ENABLE_POS_SET_DEV:
+#     pos_set_dev = vgg_obj.positive_set_std_dev( tf_vlad_word, nP=nP, nN=nN, scale_gamma=scale_gamma )
+# else:
+#     pos_set_dev = tf.constant( 0.0 )
 
 #--- c) regularization. regularization gamma is set in tf.slim ie, in class VGGDescriptor
 regularization_loss = tf.add_n(  tf.losses.get_regularization_losses()  )
 
-tf_cost = regularization_loss + fitting_loss + pos_set_dev
+if ENABLE_POS_SET_DEV:
+    tf_cost = regularization_loss + fitting_loss + pos_set_dev
+else:
+    tf_cost = regularization_loss + fitting_loss
 
 for vv in tf.trainable_variables():
     print 'name=', vv.name, 'shape=' ,vv.get_shape().as_list()
@@ -329,6 +335,7 @@ for gg in accum_vars:
 tf_batch_success_ratio = tf.placeholder( 'float', shape=[], name='batch_success_ratio' )
 tf.summary.scalar( 'batch_success_ratio', tf_batch_success_ratio )
 
+summary_text = tf.summary.text( 'tag1', tf.convert_to_tensor('Hello World msg') )
 
 #
 # Init Tensorflow - Xavier initializer, session
