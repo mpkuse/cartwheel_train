@@ -56,6 +56,8 @@ def parse_cmd_args():
 
     parser.add_argument("-wsu", "--write_summary", help="Write summary after every N iteration (default:5)")
     parser.add_argument("-wmo", "--write_tf_model", help="Write tf model after every N iteration (default:250)")
+
+    parser.add_argument( '--imshow', action='store_true' )
     args = parser.parse_args()
 
 
@@ -104,7 +106,12 @@ def parse_cmd_args():
         print tcolor.FAIL, 'config_file is required to be mentioned. Quitting', tcolor.ENDC
         quit()
 
-    return tensorboard_prefix, write_summary, model_save_prefix, write_tf_model, model_restore, restore_iteration_number, config_filename
+    if args.imshow:
+        imshow_bool = True
+    else:
+        imshow_bool = False
+
+    return tensorboard_prefix, write_summary, model_save_prefix, write_tf_model, model_restore, restore_iteration_number, config_filename, imshow_bool
 
 
 
@@ -188,7 +195,7 @@ def normalize_batch( im_batch ):
 PARAM_tensorboard_prefix, PARAM_n_write_summary, \
     PARAM_model_save_prefix, PARAM_n_write_tf_model, \
     PARAM_model_restore, PARAM_restore_iteration_number,\
-    PARAM_config_json_filename = parse_cmd_args()
+    PARAM_config_json_filename, PARAM_imshow = parse_cmd_args()
 print tcolor.HEADER, 'tensorboard_prefix     : ', PARAM_tensorboard_prefix, tcolor.ENDC
 print tcolor.HEADER, 'write_summary every    : ', PARAM_n_write_summary, 'iterations', tcolor.ENDC
 print tcolor.HEADER, 'model_save_prefix      : ', PARAM_model_save_prefix, tcolor.ENDC
@@ -216,7 +223,7 @@ NET_TYPE =           FILE_PARAMS['NET_TYPE'] #currently ["vgg6", "resnet6"]
 FITTING_LOSS_TYPE =  FILE_PARAMS['FITTING_LOSS_TYPE'] # currently ["soft_angular_ploss", "weakly_supervised_ranking_loss" ]
 ENABLE_POS_SET_DEV = FILE_PARAMS['ENABLE_POS_SET_DEV']
 PARAM_K =            FILE_PARAMS['PARAM_K']
-ENABLE_IMSHOW = True
+ENABLE_IMSHOW = PARAM_imshow
 #TODO: Validate these values. Currently working on trust that all these are OK values.
 # Dont break my trust... :).
 
