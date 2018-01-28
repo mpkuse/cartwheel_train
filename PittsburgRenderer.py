@@ -36,7 +36,7 @@ class PittsburgRenderer:
         self.PTS_BASE = PTS_BASE
         print 'PTS_BASE:', PTS_BASE
 
-        folder_list = None
+        self.folder_list = None
 
         # See if this looks like the correct folder,
         # A: if folders by name 000, 001, 002, ..., 010 exist
@@ -177,7 +177,7 @@ class PittsburgRenderer:
         return np.array(A)
 
     def step( self, nP, nN, apply_distortions=True, return_gray=False, ENABLE_IMSHOW=False ):
-        return self.preload_step( nP, nN, apply_distortions, return_gray, ENABLE_IMSHOW )
+        # return self.preload_step( nP, nN, apply_distortions, return_gray, ENABLE_IMSHOW )
         q_tup = self._query()
         sim_tup = self._similar_to( nP, q_tup)
         dif_tup = self._different_than( nN, q_tup )
@@ -190,6 +190,7 @@ class PittsburgRenderer:
             cv2.imshow( 'q_im', np.concatenate( q_im, axis=1)[:,:,::-1] )
             cv2.imshow( 'sims_im', np.concatenate( sim_im, axis=1)[:,:,::-1] )
             cv2.imshow( 'diffs_im', np.concatenate( dif_im, axis=1)[:,:,::-1] )
+            cv2.waitKey(5)
 
 
 
@@ -210,6 +211,7 @@ class PittsburgRenderer:
             cv2.imshow( 'q_im', np.concatenate( q_im, axis=1)[:,:,::-1] )
             cv2.imshow( 'sims_im', np.concatenate( sim_im, axis=1)[:,:,::-1] )
             cv2.imshow( 'diffs_im', np.concatenate( dif_im, axis=1)[:,:,::-1] )
+            cv2.waitKey(5)
 
 
 
