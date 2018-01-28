@@ -588,8 +588,8 @@ class VGGDescriptor:
         self._b = b#16
 
 
-        self.TF_MAJOR_VERSION = tf.__version__.split('.')[0]
-        self.TF_MINOR_VERSION = tf.__version__.split('.')[1]
+        self.TF_MAJOR_VERSION = int(tf.__version__.split('.')[0])
+        self.TF_MINOR_VERSION = int(tf.__version__.split('.')[1])
 
 
 

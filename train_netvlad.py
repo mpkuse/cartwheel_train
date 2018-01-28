@@ -26,6 +26,9 @@ import json
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
+TF_MAJOR_VERSION = int(tf.__version__.split('.')[0])
+TF_MINOR_VERSION = int(tf.__version__.split('.')[1])
+
 # from PandaRender import NetVLADRenderer
 from CartWheelFlow import VGGDescriptor
 from TimeMachineRender import TimeMachineRender
@@ -212,7 +215,8 @@ MINI_BATCH_SIZE =    FILE_PARAMS['MINI_BATCH_SIZE']
 NET_TYPE =           FILE_PARAMS['NET_TYPE'] #currently ["vgg6", "resnet6"]
 FITTING_LOSS_TYPE =  FILE_PARAMS['FITTING_LOSS_TYPE'] # currently ["soft_angular_ploss", "weakly_supervised_ranking_loss" ]
 ENABLE_POS_SET_DEV = FILE_PARAMS['ENABLE_POS_SET_DEV']
-PARAM_K = 16
+PARAM_K =            FILE_PARAMS['PARAM_K']
+ENABLE_IMSHOW = True
 #TODO: Validate these values. Currently working on trust that all these are OK values.
 # Dont break my trust... :).
 
@@ -263,7 +267,10 @@ pos_set_dev = vgg_obj.positive_set_std_dev( tf_vlad_word, nP=nP, nN=nN, scale_ga
 #     pos_set_dev = tf.constant( 0.0 )
 
 #--- c) regularization. regularization gamma is set in tf.slim ie, in class VGGDescriptor
-regularization_loss = tf.add_n(  tf.losses.get_regularization_losses()  )
+if TF_MAJOR_VERSION == 0:
+    regularization_loss = tf.add_n( slim.losses.get_regularization_losses() )
+else:
+    regularization_loss = tf.add_n(  tf.losses.get_regularization_losses()  )
 
 if ENABLE_POS_SET_DEV:
     tf_cost = regularization_loss + fitting_loss + pos_set_dev
@@ -336,7 +343,8 @@ for gg in accum_vars:
 tf_batch_success_ratio = tf.placeholder( 'float', shape=[], name='batch_success_ratio' )
 tf.summary.scalar( 'batch_success_ratio', tf_batch_success_ratio )
 
-summary_text = tf.summary.text( 'tag1', tf.convert_to_tensor('Hello World msg') )
+if TF_MAJOR_VERSION >= 1:
+    summary_text = tf.summary.text( 'tag1', tf.convert_to_tensor('Hello World msg') )
 
 #
 # Init Tensorflow - Xavier initializer, session
@@ -398,6 +406,7 @@ FILE_PARAMS['MINI_BATCH_SIZE'] = MINI_BATCH_SIZE
 FILE_PARAMS['NET_TYPE'] = NET_TYPE
 FILE_PARAMS['FITTING_LOSS_TYPE'] = FITTING_LOSS_TYPE
 FILE_PARAMS['ENABLE_POS_SET_DEV'] = ENABLE_POS_SET_DEV
+FILE_PARAMS['PARAM_K'] = PARAM_K
 
 # Print
 for __knk in FILE_PARAMS.keys():
@@ -423,7 +432,7 @@ with open( out_debug_config_filename , 'w' ) as fp:
 PTS_BASE = 'data_Akihiko_Torii/Pitssburg/'
 app = PittsburgRenderer( PTS_BASE )
 # Preloading image folder 000
-app.preload_all_images( folder_list=[0] )
+# app.preload_all_images( folder_list=[0] )
 
 # WALKS_BASE = './keezi_walks/'
 # app = WalksRenderer( WALKS_BASE )
@@ -456,9 +465,9 @@ while True:
     veri_total = 0.0; veri_fit=0.0; veri_reg=0.0
     # accumulate gradient
     for i_minibatch in range(mini_batch):
-        im_batch, label_batch = app.step(nP=n_positives, nN=n_negatives, return_gray=False)
+        im_batch, label_batch = app.step(nP=n_positives, nN=n_negatives, return_gray=False,ENABLE_IMSHOW=ENABLE_IMSHOW)
         while im_batch is None: #if queue not sufficiently filled, try again
-            im_batch, label_batch = app.step(nP=n_positives, nN=n_negatives, return_gray=False)
+            im_batch, label_batch = app.step(nP=n_positives, nN=n_negatives, return_gray=False, ENABLE_IMSHOW=ENABLE_IMSHOW)
 
         im_batch_normalized = normalize_batch( im_batch )
 
