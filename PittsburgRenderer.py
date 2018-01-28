@@ -25,6 +25,7 @@ import os
 import glob
 import code
 import copy
+import random
 #
 import TerminalColors
 tcolor = TerminalColors.bcolors()
@@ -34,6 +35,8 @@ class PittsburgRenderer:
 
         self.PTS_BASE = PTS_BASE
         print 'PTS_BASE:', PTS_BASE
+
+        folder_list = None
 
         # See if this looks like the correct folder,
         # A: if folders by name 000, 001, 002, ..., 010 exist
@@ -57,6 +60,8 @@ class PittsburgRenderer:
         return filename
 
 
+
+
     def _query( self, exclude=[-1,-1,-1,-1]):
         """ Generate a 4-tuple. (folderId, imageId, pitchId, yawId)
                 folderId : 000, 001, ..., 010
@@ -68,10 +73,12 @@ class PittsburgRenderer:
         """
         assert len(exclude)==4, "Length of exclude is not 4"
 
-
-        folderId = np.random.randint( 10 ) #folder 010 contains only 585 images, so ignoring it.
-        while folderId == exclude[0]:
-            folderId = np.random.randint( 10 )
+        if self.folder_list is None:
+            folderId = np.random.randint( 10 ) #folder 010 contains only 585 images, so ignoring it.
+            while folderId == exclude[0]:
+                folderId = np.random.randint( 10 )
+        else:
+            folderId = random.choice( self.folder_list )
 
         imageId  = np.random.randint( 1000 )
         while imageId == exclude[1]:
@@ -127,6 +134,7 @@ class PittsburgRenderer:
         for l in L:
             # print l
             fname = self._tuple_to_filename( l )
+            # print 'Load Image', fname
             try:
                 IM = cv2.resize( cv2.imread( fname ) , (320,240)  )
             except:
@@ -169,6 +177,7 @@ class PittsburgRenderer:
         return np.array(A)
 
     def step( self, nP, nN, apply_distortions=True, return_gray=False, ENABLE_IMSHOW=False ):
+        return self.preload_step( nP, nN, apply_distortions, return_gray, ENABLE_IMSHOW )
         q_tup = self._query()
         sim_tup = self._similar_to( nP, q_tup)
         dif_tup = self._different_than( nN, q_tup )
@@ -185,6 +194,112 @@ class PittsburgRenderer:
 
 
         return np.concatenate( (q_im, sim_im, dif_im), axis=0 ).astype('float32'), np.zeros( (1+nP+nN,4) )
+
+    def preload_step( self,  nP, nN, apply_distortions=True, return_gray=False, ENABLE_IMSHOW=False ):
+        q_tup = self._query()
+        sim_tup = self._similar_to( nP, q_tup)
+        dif_tup = self._different_than( nN, q_tup )
+
+
+        q_im = self._preload_get_images( [q_tup], apply_distortions=apply_distortions, return_gray=return_gray )
+        sim_im = self._preload_get_images( sim_tup, apply_distortions=apply_distortions, return_gray=return_gray )
+        dif_im = self._preload_get_images( dif_tup, apply_distortions=apply_distortions, return_gray=return_gray )
+
+
+        if ENABLE_IMSHOW:
+            cv2.imshow( 'q_im', np.concatenate( q_im, axis=1)[:,:,::-1] )
+            cv2.imshow( 'sims_im', np.concatenate( sim_im, axis=1)[:,:,::-1] )
+            cv2.imshow( 'diffs_im', np.concatenate( dif_im, axis=1)[:,:,::-1] )
+
+
+
+        return np.concatenate( (q_im, sim_im, dif_im), axis=0 ).astype('float32'), np.zeros( (1+nP+nN,4) )
+
+
+    def _preload_get_images( self, L, apply_distortions, return_gray ):
+        A = []
+        for l in L:
+            # print l
+            fname = self._tuple_to_filename( l )
+
+            # Find fname in array self.preload_fnames.
+            x__indx = self.preload_fnames.index( fname )
+            IM = self.preload_buffer[x__indx]
+
+            # code.interact( local=locals() )
+
+            # Apply Distortions
+            # Random Distortion
+            if apply_distortions == True and np.random.rand() > 0.5: #apply random distortions to only 50% of samples
+                #TODO: Make use of RandomDistortions class (end of this file) for complicated Distortions, for now quick and dirty way
+                # # Planar rotate IM, this rotation gives black-borders, need to crop
+                # rows,cols, _ = IM.shape
+                # irot = np.random.uniform(-180,180 )#np.random.randn() * 25.
+                # M = cv2.getRotationMatrix2D((cols*.5,rows*.5),irot,1.)
+                # dst = cv2.warpAffine(IM,M,(cols,rows))
+                # IM = dst
+
+                # Planar rotation, cropped. adopted from `test_rot-test.py`
+                image_height, image_width = IM.shape[0:2]
+                image_orig = np.copy(IM)
+                irot = np.random.uniform(-180,180 )#np.random.randn() * 25.
+                image_rotated = rotate_image(IM, irot)
+                image_rotated_cropped = crop_around_center(
+                    image_rotated,
+                    *largest_rotated_rect(
+                        image_width,
+                        image_height,
+                        math.radians(irot)
+                    ))
+                IM = cv2.resize( image_rotated_cropped, (320,240) )
+
+            if return_gray == True:
+                IM_gray = cv2.cvtColor( IM, cv2.COLOR_BGR2GRAY )
+                IM = np.expand_dims( IM_gray, axis=2 )
+
+
+
+
+            A.append( IM[:,:,::-1] )
+
+        return np.array(A)
+
+    def preload_all_images( self, folder_list ):
+        """ Loads all the Images into RAM """
+        pass
+        self.preload_buffer = []
+        self.preload_fnames = []
+        self.folder_list = folder_list
+
+        # folderId : 000, 001, ..., 010
+        # imageId  : 000, 001, ..., 999
+        # pitchid  : 1, 2
+        # yawid    : 1, 2, ..., 12
+        estimated = len(folder_list)*1000*2*12
+        cc = 0
+        for folderId in folder_list:#range(0,11):
+            for imageId in range(0,1000):
+                for pitchid in [1,2]:
+                    for yawid in range( 1, 13 ):
+                        filename = self._tuple_to_filename( [folderId, imageId, pitchid, yawid] )
+
+                        # Check if file exist
+                        if os.path.isfile( filename ) == False:
+                            continue
+
+                        cc += 1
+                        print '%d of %d: Read File' %(cc,estimated), filename
+                        try:
+                            IM = cv2.resize( cv2.imread( filename ) , (320,240)  )
+                        except:
+                            IM = np.zeros( (240, 320, 3) ).astype('uint8')
+
+                        self.preload_buffer.append( IM )
+                        self.preload_fnames.append( filename )
+
+
+
+        print 'Loaded %d Items' %(len(self.preload_fnames) )
 
 
 
@@ -259,6 +374,12 @@ def rotate_image(image, angle):
     return result
 
 
+
+
+
+
+
+
 def largest_rotated_rect(w, h, angle):
     """
     Given a rectangle of size wxh that has been rotated by 'angle' (in
@@ -318,8 +439,13 @@ def crop_around_center(image, width, height):
     return image[y1:y2, x1:x2]
 
 if __name__ == "__main__":
-    PTS_BASE = '/media/mpkuse/Bulk_Data/data_Akihiko_Torii/Pitssburg/'
+    PTS_BASE = 'data_Akihiko_Torii/Pitssburg/'
     pr = PittsburgRenderer( PTS_BASE )
+
+    pr.preload_all_images( [0] )
+    a, b = pr.preload_step( nP=5, nN=5)
+    quit()
+
     a,b = pr.step(nP=5, nN=5)
     quit()
     tup = pr._query( exclude=[-1, -1, 1, -1])

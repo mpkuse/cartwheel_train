@@ -30,6 +30,7 @@ import tensorflow.contrib.slim as slim
 from CartWheelFlow import VGGDescriptor
 from TimeMachineRender import TimeMachineRender
 from WalksRenderer import WalksRenderer
+from PittsburgRenderer import PittsburgRenderer
 
 #
 import TerminalColors
@@ -342,6 +343,8 @@ summary_text = tf.summary.text( 'tag1', tf.convert_to_tensor('Hello World msg') 
 # tensorflow_session = tf.Session()
 tensorflow_session = tf.Session( config=tf.ConfigProto(log_device_placement=False, intra_op_parallelism_threads=1, inter_op_parallelism_threads=1) )
 
+coord = tf.train.Coordinator()
+threads = tf.train.start_queue_runners(sess=tensorflow_session, coord=coord)
 
 #
 # Tensorboard and Saver
@@ -414,9 +417,13 @@ with open( out_debug_config_filename , 'w' ) as fp:
 # It renderers 16 images at a time. 1st im is query image. Next nP images are positive samples. Next nN samples are negative samples
 # app = NetVLADRenderer()
 
-TTM_BASE = 'data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
-app = TimeMachineRender(TTM_BASE)
+# TTM_BASE = 'data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
+# app = TimeMachineRender(TTM_BASE)
 
+PTS_BASE = 'data_Akihiko_Torii/Pitssburg/'
+app = PittsburgRenderer( PTS_BASE )
+# Preloading image folder 000
+app.preload_all_images( folder_list=[0] )
 
 # WALKS_BASE = './keezi_walks/'
 # app = WalksRenderer( WALKS_BASE )
