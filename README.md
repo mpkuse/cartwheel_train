@@ -16,7 +16,7 @@ cv2 - OpenCV <br/>
 numpy - Python Math
 
 
-### Howto use
+### Howto train
 Main code : train_netvlad.py. Following will load the `config/A.json` as vital training parameters and
 write the output to folder `tf3.logs/A`.
 
@@ -35,3 +35,6 @@ It is also possible to train this network with a 3D model using Panda3d renderin
 Additionally there is also a Google Street view API which you can crawl yourself to generate data. 
 
 
+### Howto obtain image descriptor 
+If you wish to obtain image descriptors for your own images, look at the script `association_map.py`. 
+You can also obtain the association maps (similar to ones shown in the paper). 
