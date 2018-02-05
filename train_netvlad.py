@@ -2,6 +2,10 @@
         Basic idea is to learn a 16D representation. Cost function being the
         triplet ranking loss
 
+        Added code for pairwise loss
+
+
+
         Author  : Manohar Kuse <mpkuse@ust.hk>
         Created : 12th Jan, 2017
 """
@@ -13,26 +17,36 @@ import matplotlib.pyplot as plt
 import time
 import code
 import argparse
+import os
+import datetime
+
+from collections import OrderedDict
+import json
 
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
 
-from PandaRender import NetVLADRenderer
+TF_MAJOR_VERSION = int(tf.__version__.split('.')[0])
+TF_MINOR_VERSION = int(tf.__version__.split('.')[1])
+
+# from PandaRender import NetVLADRenderer
 from CartWheelFlow import VGGDescriptor
 from TimeMachineRender import TimeMachineRender
 from WalksRenderer import WalksRenderer
+from PittsburgRenderer import PittsburgRenderer
 
 #
 import TerminalColors
 tcolor = TerminalColors.bcolors()
 
-import pyqtgraph as pg
+# import pyqtgraph as pg
 
 def parse_cmd_args():
     """Parse Arguments"""
     parser = argparse.ArgumentParser()
     parser.add_argument("-t", "--tensorboard_prefix", help="Path for tensorboard")
     parser.add_argument("-s", "--model_save_prefix", help="Path for saving model. If not specified will be same as tensorboard_prefix")
+    parser.add_argument("-f", "--config_file", help="File name of config-file (file should be a .json)" )
     parser.add_argument("-r", "--model_restore", help="Path of model file for restore. This file path is \
                                     split(-) and last number is set as iteration count. \
                                     Absense of this will lead to xavier init")
@@ -42,6 +56,8 @@ def parse_cmd_args():
 
     parser.add_argument("-wsu", "--write_summary", help="Write summary after every N iteration (default:5)")
     parser.add_argument("-wmo", "--write_tf_model", help="Write tf model after every N iteration (default:250)")
+
+    parser.add_argument( '--imshow', action='store_true' )
     args = parser.parse_args()
 
 
@@ -80,8 +96,22 @@ def parse_cmd_args():
     else:
         restore_iteration_number = -1
 
+    if args.config_file:
+        # Check Existence of the file
+        if os.path.exists( args.config_file ):
+            config_filename = args.config_file
+        else:
+            print tcolor.FAIL, 'config_file does not exist. Quitting', tcolor.ENDC
+    else:
+        print tcolor.FAIL, 'config_file is required to be mentioned. Quitting', tcolor.ENDC
+        quit()
 
-    return tensorboard_prefix, write_summary, model_save_prefix, write_tf_model, model_restore, restore_iteration_number
+    if args.imshow:
+        imshow_bool = True
+    else:
+        imshow_bool = False
+
+    return tensorboard_prefix, write_summary, model_save_prefix, write_tf_model, model_restore, restore_iteration_number, config_filename, imshow_bool
 
 
 
@@ -164,7 +194,8 @@ def normalize_batch( im_batch ):
 # Parse Commandline
 PARAM_tensorboard_prefix, PARAM_n_write_summary, \
     PARAM_model_save_prefix, PARAM_n_write_tf_model, \
-    PARAM_model_restore, PARAM_restore_iteration_number = parse_cmd_args()
+    PARAM_model_restore, PARAM_restore_iteration_number,\
+    PARAM_config_json_filename, PARAM_imshow = parse_cmd_args()
 print tcolor.HEADER, 'tensorboard_prefix     : ', PARAM_tensorboard_prefix, tcolor.ENDC
 print tcolor.HEADER, 'write_summary every    : ', PARAM_n_write_summary, 'iterations', tcolor.ENDC
 print tcolor.HEADER, 'model_save_prefix      : ', PARAM_model_save_prefix, tcolor.ENDC
@@ -172,36 +203,86 @@ print tcolor.HEADER, 'write_tf_model every   : ', PARAM_n_write_tf_model, 'itera
 
 print tcolor.HEADER, 'model_restore          : ', PARAM_model_restore, tcolor.ENDC
 print tcolor.HEADER, 'restore_iteration_n    : ', PARAM_restore_iteration_number, tcolor.ENDC
+print tcolor.HEADER, 'config_file            : ', PARAM_config_json_filename, tcolor.ENDC
 
+
+#
+# Runtime Parameters
+
+# Load JSON
+print 'Open JSON-config file: ', PARAM_config_json_filename
+with open( PARAM_config_json_filename ) as json_data:
+    FILE_PARAMS = json.load( json_data )
+
+nP =                 FILE_PARAMS['nP']
+nN =                 FILE_PARAMS['nN']
+margin =             FILE_PARAMS['MARGIN']
+scale_gamma =        FILE_PARAMS['SCALE_GAMMA']
+MINI_BATCH_SIZE =    FILE_PARAMS['MINI_BATCH_SIZE']
+NET_TYPE =           FILE_PARAMS['NET_TYPE'] #currently ["vgg6", "resnet6"]
+FITTING_LOSS_TYPE =  FILE_PARAMS['FITTING_LOSS_TYPE'] # currently ["soft_angular_ploss", "weakly_supervised_ranking_loss" ]
+ENABLE_POS_SET_DEV = FILE_PARAMS['ENABLE_POS_SET_DEV']
+PARAM_K =            FILE_PARAMS['PARAM_K']
+ENABLE_IMSHOW = PARAM_imshow
+#TODO: Validate these values. Currently working on trust that all these are OK values.
+# Dont break my trust... :).
+
+# Default code- Can Overide if need be
+# nP = 8
+# nN = 8
+# margin = 0.1
+# scale_gamma = 0.07
+# MINI_BATCH_SIZE = 24
+# NET_TYPE = "resnet6" #currently ["vgg6", "resnet6"]
+# FITTING_LOSS_TYPE = "soft_angular_ploss" # currently ["soft_angular_ploss", "weakly_supervised_ranking_loss" ]
+# ENABLE_POS_SET_DEV = True
 
 
 
 #
-# Tensorflow - VGG16-NetVLAD Word
-nP = 8
-nN = 8
-margin = 0.1#10.0
-scale_gamma = 0.07
+# Tensorflow - NetVLAD Word
 learning_batch_size = 1+nP+nN #Note: nP and nN is not well tested with pandarenderer. However it is ok with timemachine renderer
 tf_x = tf.placeholder( 'float', [learning_batch_size,240,320,3], name='x' ) #this has to be 3 if training with color images
 is_training = tf.placeholder( tf.bool, [], name='is_training')
 
 
-vgg_obj = VGGDescriptor(K=32, D=256, N=60*80, b=learning_batch_size)
-tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
+vgg_obj = VGGDescriptor(K=PARAM_K, D=256, N=60*80, b=learning_batch_size)
+# tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
+tf_vlad_word = vgg_obj.network(tf_x, is_training, net_type=NET_TYPE )
 
 
 #
-# Tensorflow - Cost function (Triplet Loss)
-# fitting_loss = 0
+# Tensorflow - Cost function
 
-
+#--- a) Fitting Cost
 # fitting_loss = vgg_obj.svm_hinge_loss( tf_vlad_word, nP=nP, nN=nN, margin=margin )
 # fitting_loss = vgg_obj.soft_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #keep margin as 10
-fitting_loss = vgg_obj.soft_angular_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #margin as 0.2
+
+if FITTING_LOSS_TYPE == "soft_angular_ploss":
+    fitting_loss = vgg_obj.soft_angular_ploss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #margin as 0.2
+
+if FITTING_LOSS_TYPE == "weakly_supervised_ranking_loss":
+    fitting_loss = vgg_obj.weakly_supervised_ranking_loss( tf_vlad_word, nP=nP, nN=nN, margin=margin ) #margin as 0.2
+
+
+#--- b) Positive Set deviation
+# TODO Instead of setting this to zero, do not add it to tf_cost. This ways, it will eval to a value which can be visualized and compared.
 pos_set_dev = vgg_obj.positive_set_std_dev( tf_vlad_word, nP=nP, nN=nN, scale_gamma=scale_gamma )
-regularization_loss = tf.add_n( slim.losses.get_regularization_losses() )
-tf_cost = regularization_loss + fitting_loss + pos_set_dev
+# if ENABLE_POS_SET_DEV:
+#     pos_set_dev = vgg_obj.positive_set_std_dev( tf_vlad_word, nP=nP, nN=nN, scale_gamma=scale_gamma )
+# else:
+#     pos_set_dev = tf.constant( 0.0 )
+
+#--- c) regularization. regularization gamma is set in tf.slim ie, in class VGGDescriptor
+if TF_MAJOR_VERSION == 0:
+    regularization_loss = tf.add_n( slim.losses.get_regularization_losses() )
+else:
+    regularization_loss = tf.add_n(  tf.losses.get_regularization_losses()  )
+
+if ENABLE_POS_SET_DEV:
+    tf_cost = regularization_loss + fitting_loss + pos_set_dev
+else:
+    tf_cost = regularization_loss + fitting_loss
 
 for vv in tf.trainable_variables():
     print 'name=', vv.name, 'shape=' ,vv.get_shape().as_list()
@@ -269,11 +350,16 @@ for gg in accum_vars:
 tf_batch_success_ratio = tf.placeholder( 'float', shape=[], name='batch_success_ratio' )
 tf.summary.scalar( 'batch_success_ratio', tf_batch_success_ratio )
 
+if TF_MAJOR_VERSION >= 1:
+    summary_text = tf.summary.text( 'tag1', tf.convert_to_tensor('Hello World msg') )
 
 #
 # Init Tensorflow - Xavier initializer, session
-tensorflow_session = tf.Session()
+# tensorflow_session = tf.Session()
+tensorflow_session = tf.Session( config=tf.ConfigProto(log_device_placement=False, intra_op_parallelism_threads=1, inter_op_parallelism_threads=1) )
 
+coord = tf.train.Coordinator()
+threads = tf.train.start_queue_runners(sess=tensorflow_session, coord=coord)
 
 #
 # Tensorboard and Saver
@@ -317,15 +403,43 @@ plt_pos_writer = open( plt_pos_writer_file , 'w+', 0 )
 plt_neg_writer = open( plt_neg_writer_file , 'w+', 0 )
 
 
+# Write config file for later debugging (with timestamp)
+FILE_PARAMS = OrderedDict()
+FILE_PARAMS['nP'] = nP
+FILE_PARAMS['nN'] = nN
+FILE_PARAMS['MARGIN'] = margin
+FILE_PARAMS['SCALE_GAMMA'] = scale_gamma
+FILE_PARAMS['MINI_BATCH_SIZE'] = MINI_BATCH_SIZE
+FILE_PARAMS['NET_TYPE'] = NET_TYPE
+FILE_PARAMS['FITTING_LOSS_TYPE'] = FITTING_LOSS_TYPE
+FILE_PARAMS['ENABLE_POS_SET_DEV'] = ENABLE_POS_SET_DEV
+FILE_PARAMS['PARAM_K'] = PARAM_K
+
+# Print
+for __knk in FILE_PARAMS.keys():
+    print tcolor.BOLD, __knk, tcolor.ENDC, ' : ', FILE_PARAMS[__knk]
+
+out_debug_config_filename = PARAM_tensorboard_prefix+'/config_%s.json' %( str(datetime.datetime.now()) )
+print tcolor.HEADER, 'Open file ', out_debug_config_filename, tcolor.ENDC
+with open( out_debug_config_filename , 'w' ) as fp:
+    json.dump( FILE_PARAMS, fp, indent=4 )
+
+# End writing config for debugging
+
+
 
 #
 # Setup NetVLAD Renderer - This renderer is custom made for NetVLAD training.
 # It renderers 16 images at a time. 1st im is query image. Next nP images are positive samples. Next nN samples are negative samples
 # app = NetVLADRenderer()
 
-TTM_BASE = 'data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
-app = TimeMachineRender(TTM_BASE)
+# TTM_BASE = 'data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
+# app = TimeMachineRender(TTM_BASE)
 
+PTS_BASE = 'data_Akihiko_Torii/Pitssburg/'
+app = PittsburgRenderer( PTS_BASE )
+# Preloading image folder 000
+# app.preload_all_images( folder_list=[0] )
 
 # WALKS_BASE = './keezi_walks/'
 # app = WalksRenderer( WALKS_BASE )
@@ -353,14 +467,14 @@ while True:
 
     tensorflow_session.run([zero_op,zero_tf_cost,zero_fit_loss,zero_reg_loss,zero_pos_set_dev]) #set gradient_cummulator and cost_cummulator to zero
 
-    mini_batch = 24
+    mini_batch = MINI_BATCH_SIZE
     n_zero_tff_costs = 0 #Number of zero-costs in this batch
     veri_total = 0.0; veri_fit=0.0; veri_reg=0.0
     # accumulate gradient
     for i_minibatch in range(mini_batch):
-        im_batch, label_batch = app.step(nP=n_positives, nN=n_negatives, return_gray=False)
-        while im_batch == None: #if queue not sufficiently filled, try again
-            im_batch, label_batch = app.step(nP=n_positives, nN=n_negatives, return_gray=False)
+        im_batch, label_batch = app.step(nP=n_positives, nN=n_negatives, return_gray=False,ENABLE_IMSHOW=ENABLE_IMSHOW)
+        while im_batch is None: #if queue not sufficiently filled, try again
+            im_batch, label_batch = app.step(nP=n_positives, nN=n_negatives, return_gray=False, ENABLE_IMSHOW=ENABLE_IMSHOW)
 
         im_batch_normalized = normalize_batch( im_batch )
 
@@ -371,15 +485,19 @@ while True:
                      is_training:True,\
                      vgg_obj.initial_t: 0
                     }
+
+
+
+        # print 'tf.run()', i_minibatch, im_batch.shape, im_batch_normalized.shape
         # tff_cost, tff_word, _grad_ = tensorflow_session.run( [tf_cost, tf_vlad_word, accum_op], feed_dict=feed_dict)
         # _dis_q_P, _dis_q_N, _cost = verify_cost( tff_word, nP, nN, margin )
         # print tff_cost, _cost
         # tff_cost, _grad_, tff_cc_cost, regloss = tensorflow_session.run( [tf_cost, accum_op, accum_cc_cost_op, regularization_loss], feed_dict=feed_dict)
         tff_cost, tff_fit, tff_regloss, tff_pos_set_dev, tff_cu_cost, tff_cu_fit, tff_cu_regloss, tff_cu_dev, _grad_, tff_dot_q_P, tff_dot_q_N = tensorflow_session.run( [tf_cost, fitting_loss, regularization_loss,  pos_set_dev, accum_tf_cost, accum_fit_loss, accum_reg_loss, accum_pos_set_dev, accum_op, vgg_obj.dot_q_P, vgg_obj.dot_q_N ], feed_dict=feed_dict )
-        veri_total += tff_cost
-        veri_fit   += tff_fit
-        veri_reg   += tff_regloss
-
+        # veri_total += tff_cost
+        # veri_fit   += tff_fit
+        # veri_reg   += tff_regloss
+        # print 'done tf.run()', i_minibatch
         if tff_fit <= 0.001:
             n_zero_tff_costs = n_zero_tff_costs + 1
 

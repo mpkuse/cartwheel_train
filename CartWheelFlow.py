@@ -588,34 +588,42 @@ class VGGDescriptor:
         self._b = b#16
 
 
+        self.TF_MAJOR_VERSION = int(tf.__version__.split('.')[0])
+        self.TF_MINOR_VERSION = int(tf.__version__.split('.')[1])
+
+
+
+    # # vggnet16. is_training is a placeholder boolean - unuse- mark for removal
+    # def vgg16_raw_features( self, inputs, is_training ):
+    #     with slim.arg_scope([slim.conv2d, slim.fully_connected],\
+    #                       activation_fn=tf.nn.relu,\
+    #                       weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),\
+    #                       weights_regularizer=slim.l2_regularizer(0.00002),
+    #                       normalizer_fn=slim.batch_norm, \
+    #                       normalizer_params={'is_training':is_training, 'decay': 0.9, 'updates_collections': None, 'scale': True}\
+    #                       ):
+    #         # tf.summary.histogram( 'xxxx_inputs', inputs )
+    #         net = slim.repeat(inputs, 2, slim.conv2d, 64, [3, 3], scope='conv1') #64
+    #         # tf.summary.histogram( 'xxxx_blk1', net )
+    #         net = slim.max_pool2d(net, [2, 2], scope='pool1')
+    #         net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], scope='conv2') #128
+    #         # tf.summary.histogram( 'xxxx_blk2', net )
+    #         net = slim.max_pool2d(net, [2, 2], scope='pool2')
+    #
+    #         # net = slim.repeat(net, 1, slim.conv2d, self.D, [3, 3], scope='conv3')    #with relu and with BN
+    #         net = slim.conv2d( net, self._D, [3,3], activation_fn=None, scope='conv3' ) #256 #w/o relu at the end. with BN. #TODO Possibly also remove BN from last one
+    #         # tf.summary.histogram( 'xxxx_blk3', net )
+    #
+    #         # net is now 16x60x80x256. If this changes. Need to change self.N (which is currently 60*80) accordingly
+    #         return net
+
+
+    def network( self, inputs, is_training, net_type ):
+        return self.vgg16( inputs, is_training, net_type )
+        # Eventually, rename the function vgg16() as network().
+
     # vggnet16. is_training is a placeholder boolean
-    def vgg16_raw_features( self, inputs, is_training ):
-        with slim.arg_scope([slim.conv2d, slim.fully_connected],\
-                          activation_fn=tf.nn.relu,\
-                          weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),\
-                          weights_regularizer=slim.l2_regularizer(0.00002),
-                          normalizer_fn=slim.batch_norm, \
-                          normalizer_params={'is_training':is_training, 'decay': 0.9, 'updates_collections': None, 'scale': True}\
-                          ):
-            # tf.summary.histogram( 'xxxx_inputs', inputs )
-            net = slim.repeat(inputs, 2, slim.conv2d, 64, [3, 3], scope='conv1') #64
-            # tf.summary.histogram( 'xxxx_blk1', net )
-            net = slim.max_pool2d(net, [2, 2], scope='pool1')
-            net = slim.repeat(net, 2, slim.conv2d, 128, [3, 3], scope='conv2') #128
-            # tf.summary.histogram( 'xxxx_blk2', net )
-            net = slim.max_pool2d(net, [2, 2], scope='pool2')
-
-            # net = slim.repeat(net, 1, slim.conv2d, self.D, [3, 3], scope='conv3')    #with relu and with BN
-            net = slim.conv2d( net, self._D, [3,3], activation_fn=None, scope='conv3' ) #256 #w/o relu at the end. with BN. #TODO Possibly also remove BN from last one
-            # tf.summary.histogram( 'xxxx_blk3', net )
-
-            # net is now 16x60x80x256. If this changes. Need to change self.N (which is currently 60*80) accordingly
-            return net
-
-
-
-    # vggnet16. is_training is a placeholder boolean
-    def vgg16( self, inputs, is_training ):
+    def vgg16( self, inputs, is_training, net_type="resnet6" ):
 
         u = [64, 128] #original
         m = [3,3,3] #original
@@ -627,163 +635,200 @@ class VGGDescriptor:
 
 
         # # Original - VGG
-        # with slim.arg_scope([slim.conv2d, slim.fully_connected],\
-        #                   activation_fn=tf.nn.relu,\
-        #                   weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),\
-        #                   weights_regularizer=slim.l2_regularizer(0.000005),
-        #                   normalizer_fn=slim.batch_norm, \
-        #                   normalizer_params={'is_training':is_training, 'decay': 0.9, 'updates_collections': None, 'scale': True}\
-        #                   ):
-        #     # tf.summary.histogram( 'xxxx_inputs', inputs )
-        #     net = slim.repeat(inputs, 2, slim.conv2d, u[0], [m[0], m[0]], scope='conv1') #u=64 m=[3,3]
-        #     # tf.summary.histogram( 'xxxx_blk1', net )
-        #     net = slim.max_pool2d(net, [2, 2], scope='pool1')
-        #     net = slim.repeat(net, 2, slim.conv2d, u[1], [m[1], m[1]], scope='conv2') #u=128, m=[3,3]
-        #     # tf.summary.histogram( 'xxxx_blk2', net )
-        #     net = slim.max_pool2d(net, [2, 2], scope='pool2')
-        #
-        #     # net = slim.repeat(net, 1, slim.conv2d, self.D, [3, 3], scope='conv3')    #with relu and with BN
-        #     net = slim.conv2d( net, self._D, [m[2],m[2]], activation_fn=None, scope='conv3' ) #256 #w/o relu at the end. with BN. #TODO Possibly also remove BN from last one
-        #     # tf.summary.histogram( 'xxxx_blk3', net )
+        if net_type == "vgg6":
+            with slim.arg_scope([slim.conv2d, slim.fully_connected],\
+                              activation_fn=tf.nn.relu,\
+                              weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),\
+                              weights_regularizer=slim.l2_regularizer(0.000005),
+                              normalizer_fn=slim.batch_norm, \
+                              normalizer_params={'is_training':is_training, 'decay': 0.9, 'updates_collections': None, 'scale': True}\
+                              ):
+                # tf.summary.histogram( 'xxxx_inputs', inputs )
+                net = slim.repeat(inputs, 2, slim.conv2d, 64, [3,3], scope='conv1') #u=64 m=[3,3]
+                # tf.summary.histogram( 'xxxx_blk1', net )
+                net = slim.max_pool2d(net, [2, 2], scope='pool1')
+                net = slim.repeat(net, 2, slim.conv2d, 64, [3,3], scope='conv2') #u=128, m=[3,3]
+                # tf.summary.histogram( 'xxxx_blk2', net )
+                net = slim.max_pool2d(net, [2, 2], scope='pool2')
 
+                # net = slim.repeat(net, 1, slim.conv2d, self.D, [3, 3], scope='conv3')    #with relu and with BN
+                net = slim.conv2d( net, self._D, [3,3], activation_fn=None, scope='conv3' ) #256 #w/o relu at the end. with BN. #TODO Possibly also remove BN from last one
+                # tf.summary.histogram( 'xxxx_blk3', net )
 
+            pass
 
-        # ResNet - mini
-        with slim.arg_scope([slim.conv2d, slim.fully_connected],\
-                          activation_fn=tf.nn.relu,\
-                          weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),\
-                          weights_regularizer=slim.l2_regularizer(0.000005),
-                          normalizer_fn=slim.batch_norm, \
-                          normalizer_params={'is_training':is_training, 'decay': 0.9, 'updates_collections': None, 'scale': True}\
-                          ):
+        if net_type == "resnet6":
+            # ResNet - mini
+            with slim.arg_scope([slim.conv2d, slim.fully_connected],\
+                              activation_fn=tf.nn.relu,\
+                              weights_initializer=tf.contrib.layers.xavier_initializer_conv2d(),\
+                              weights_regularizer=slim.l2_regularizer(0.000005),
+                              normalizer_fn=slim.batch_norm, \
+                              normalizer_params={'is_training':is_training, 'decay': 0.9, 'updates_collections': None, 'scale': True}\
+                              ):
 
-            net = slim.conv2d( inputs, 64, [7,7], scope='conv0' )
+                net = slim.conv2d( inputs, 64, [7,7], scope='conv0' )
 
-            # tf.summary.histogram( 'xxxx_inputs', inputs )
-            net_out = net + slim.repeat(net, 2, slim.conv2d, 64, [m[0], m[0]], scope='conv1') #u=64 m=[3,3]
-            net = net_out
-            # tf.summary.histogram( 'xxxx_blk1', net )
-            net = slim.max_pool2d(net, [2, 2], scope='pool1')
+                # tf.summary.histogram( 'xxxx_inputs', inputs )
+                net_out = net + slim.repeat(net, 2, slim.conv2d, 64, [m[0], m[0]], scope='conv1') #u=64 m=[3,3]
+                net = net_out
+                # tf.summary.histogram( 'xxxx_blk1', net )
+                net = slim.max_pool2d(net, [2, 2], scope='pool1')
 
-            net = slim.conv2d( net, 128, [3,3], scope='conv2__x' )
-            net_out = net + slim.repeat(net, 2, slim.conv2d, 128, [m[1], m[1]], scope='conv2') #u=128, m=[3,3]
-            net = net_out
-            # tf.summary.histogram( 'xxxx_blk2', net )
-            net = slim.max_pool2d(net, [2, 2], scope='pool2')
+                net = slim.conv2d( net, 128, [3,3], scope='conv2__x' )
+                net_out = net + slim.repeat(net, 2, slim.conv2d, 128, [m[1], m[1]], scope='conv2') #u=128, m=[3,3]
+                net = net_out
+                # tf.summary.histogram( 'xxxx_blk2', net )
+                net = slim.max_pool2d(net, [2, 2], scope='pool2')
 
-            # net = slim.repeat(net, 1, slim.conv2d, self.D, [3, 3], scope='conv3')    #with relu and with BN
-            net = slim.conv2d( net, self._D, [m[2],m[2]], activation_fn=None, scope='conv3' ) #256 #w/o relu at the end. with BN. #TODO Possibly also remove BN from last one
-            # tf.summary.histogram( 'xxxx_blk3', net )
+                # net = slim.repeat(net, 1, slim.conv2d, self.D, [3, 3], scope='conv3')    #with relu and with BN
+                net = slim.conv2d( net, self._D, [m[2],m[2]], activation_fn=None, scope='conv3' ) #256 #w/o relu at the end. with BN. #TODO Possibly also remove BN from last one
+                # tf.summary.histogram( 'xxxx_blk3', net )
+            pass
 
             # net is now 16x60x80x256. If this changes. Need to change self.N (which is currently 60*80) accordingly
 
-            # ------ NetVLAD ------ #
-            net = self.netvlad_layer( net ) #16x64x256, used 32 cluster instead of 64 for computation reason
-            net = tf.nn.l2_normalize( net, dim=2, name='intra_normalization' )
-            sh = tf.shape(net)
-            net = tf.reshape( net, [sh[0], sh[1]*sh[2] ]) # retrns 16x64*256
-            net = tf.nn.l2_normalize( net, dim=1, name='normalization' )
+        # ------ NetVLAD ------ #
+        net = self.netvlad_layer( net ) #16x64x256, used 32 cluster instead of 64 for computation reason
+        net = tf.nn.l2_normalize( net, dim=2, name='intra_normalization' )
+        sh = tf.shape(net)
+        net = tf.reshape( net, [sh[0], sh[1]*sh[2] ]) # retrns 16x64*256
+        net = tf.nn.l2_normalize( net, dim=1, name='normalization' )
 
-            # power normalization
-            # net = tf.multiply( tf.sign(net), tf.pow( tf.abs(net),  tf.constant(0.5) ) )
-            # net = tf.nn.l2_normalize( net, dim=1, name='normalization2' )
-            return net
-            # -------- ENDC ------- #
-
-
-            # # ------ MaxPooling ----- #
-            # net = slim.avg_pool2d(net, kernel_size=[10, 10], stride=10, scope='pool3') #after maxpool, net=16x6x8x256
-            #
-            # #intra normalize
-            # net = tf.nn.l2_normalize( net, dim=3, name='intra_normalization' )
-            # # net = tf.mul( tf.constant(1000.), net )
-            #
-            # sh = tf.shape(net)
-            # net = tf.reshape( net, [sh[0], sh[1]*sh[2]*sh[3] ]) # retrns 16x12288
-            #
-            # #normalize
-            # # net = tf.nn.l2_normalize( net, dim=1, name='l2_normalization' )
-            # return net
-            # # -------- ENDC --------- #
+        # power normalization
+        # net = tf.multiply( tf.sign(net), tf.pow( tf.abs(net),  tf.constant(0.5) ) )
+        # net = tf.nn.l2_normalize( net, dim=1, name='normalization2' )
+        return net
+        # -------- ENDC ------- #
 
 
+        # # ------ MaxPooling ----- #
+        # net = slim.avg_pool2d(net, kernel_size=[10, 10], stride=10, scope='pool3') #after maxpool, net=16x6x8x256
+        #
+        # #intra normalize
+        # net = tf.nn.l2_normalize( net, dim=3, name='intra_normalization' )
+        # # net = tf.mul( tf.constant(1000.), net )
+        #
+        # sh = tf.shape(net)
+        # net = tf.reshape( net, [sh[0], sh[1]*sh[2]*sh[3] ]) # retrns 16x12288
+        #
+        # #normalize
+        # # net = tf.nn.l2_normalize( net, dim=1, name='l2_normalization' )
+        # return net
+        # # -------- ENDC --------- #
 
-    ## Margined hinge loss. Distance is computed as euclidean distance.
-    def svm_hinge_loss( self,tf_vlad_word, nP, nN, margin ):
-        sp_q, sp_P, sp_N = tf.split_v( tf_vlad_word, [1,nP,nN], 0 )
+
+
+    # ## Margined hinge loss. Distance is computed as euclidean distance. Not in use. consider removal
+    # def svm_hinge_loss( self,tf_vlad_word, nP, nN, margin ):
+    #     # sp_q, sp_P, sp_N = tf.split_v( tf_vlad_word, [1,nP,nN], 0 ) # org code
+    #     if self.TF_MAJOR_VERSION == 0:
+    #         sp_q, sp_P, sp_N = tf.split_v( tf_vlad_word, [1,nP,nN], 0 )
+    #     else:
+    #         sp_q, sp_P, sp_N = tf.split( tf_vlad_word, [1,nP,nN], 0 )
+    #     #sp_q=query; sp_P=definite_positives ; sp_N=definite_negatives
+    #     #q:1x16k;   P:5x16k;    N:10x16k
+    #
+    #
+    #     # distance between sp_q and each of sp_P
+    #     one_a = tf.ones( [nP,1], tf.float32 )
+    #     a_ = tf.sub( tf.matmul( one_a, sp_q ), sp_P ) #   (1 * q - P)**2  ==> (q-P)**2
+    #     tf_dis_q_P = tf.reduce_mean( tf.mul( a_, a_ ), axis=1 ) #row-wise norm (L2)
+    #
+    #
+    #     # distance between sp_q and each of sp_N
+    #     one_b = tf.ones( [nN,1], tf.float32 )
+    #     b_ = tf.sub( tf.matmul( one_b, sp_q ), sp_N ) #   (1 * q - P)**2  ==> (q-P)**2
+    #     tf_dis_q_N = tf.reduce_mean( tf.mul( b_, b_ ), axis=1 ) #row-wise norm (L2)
+    #
+    #     # SVM-hinge loss
+    #     # max( tf_dis_q_P ): Farthest positive sample
+    #     # min( tf_dis_q_N ): Nearest
+    #     tf_margin = tf.constant(margin, name='margin')
+    #     cost_ = tf.sub( tf.add( tf.reduce_max(tf_dis_q_P), tf_margin),  tf.reduce_min(tf_dis_q_N), name='svm_margin_loss' ) # max_i a - max_j b + m
+    #     tf_cost = tf.maximum( cost_, tf.constant(0.0), name='hinge_loss' )
+    #
+    #     return tf_cost
+
+
+
+        #not in use - consider removal
+    # ## log-sum-exp loss for every pair of (d_P, d_N). d_P \in Positive samples. d_N in negative samples
+    # def soft_ploss( self,tf_vlad_word, nP, nN, margin ):
+    #     # sp_q, sp_P, sp_N = tf.split_v( tf_vlad_word, [1,nP,nN], 0 ) #org code
+    #     if self.TF_MAJOR_VERSION == 0:
+    #         sp_q, sp_P, sp_N = tf.split_v( tf_vlad_word, [1,nP,nN], 0 )
+    #     else:
+    #         sp_q, sp_P, sp_N = tf.split( tf_vlad_word, [1,nP,nN], 0 )
+    #     #sp_q=query; sp_P=definite_positives ; sp_N=definite_negatives
+    #     #q:1x16k;   P:5x16k;    N:10x16k
+    #
+    #
+    #     # distance between sp_q and each of sp_P
+    #     one_a = tf.ones( [nP,1], tf.float32 )
+    #     a_ = tf.sub( tf.matmul( one_a, sp_q ), sp_P ) #   (1 * q - P)**2  ==> (q-P)**2
+    #     tf_dis_q_P = tf.reduce_sum( tf.mul( a_, a_ ), axis=1 ) #row-wise norm (L2)
+    #
+    #
+    #     # distance between sp_q and each of sp_N
+    #     one_b = tf.ones( [nN,1], tf.float32 )
+    #     b_ = tf.sub( tf.matmul( one_b, sp_q ), sp_N ) #   (1 * q - P)**2  ==> (q-P)**2
+    #     tf_dis_q_N = tf.reduce_sum( tf.mul( b_, b_ ), axis=1 ) #row-wise norm (L2)
+    #
+    #     # form a 2D matrix for each pairwise distance difference
+    #     # repeat positive_dis by nN times. and negative distance by nP time. (yes this is correct...you want to do the reverse)
+    #     rep_P = tf.matmul( one_b, tf.expand_dims( tf_dis_q_P, 0 ) )
+    #     rep_N = tf.matmul( one_a, tf.expand_dims( tf_dis_q_N, 0 ) )
+    #
+    #     #pairwise difference of distances
+    #     pdis_diff = rep_P - tf.transpose( rep_N ) + tf.constant(margin, name='margin')
+    #
+    #     # logsumexp
+    #     cost = tf.reduce_logsumexp( pdis_diff )
+    #     hinged_cost = tf.maximum( cost, tf.constant(0.0), name='hinge_loss' )
+    #
+    #
+    #     # self.cost = cost
+    #     self.pdis_diff = pdis_diff
+    #     # self.rep_P = rep_P
+    #     # self.rep_N = rep_N
+    #     # self.sp_q = sp_q
+    #     # self.sp_P = sp_P
+    #     # self.sp_N = sp_N
+    #     self.tf_dis_q_P = tf_dis_q_P
+    #     self.tf_dis_q_N = tf_dis_q_N
+    #     return hinged_cost
+
+    ## The words are l2_normalized. It is exactly like the NetVLAD paper
+    ## tf_vlad_word : N x 16K
+    def weakly_supervised_ranking_loss( self,tf_vlad_word, nP, nN, margin ):
+        # print 'Not Implemented'
+        if self.TF_MAJOR_VERSION == 0:
+            sp_q, sp_P, sp_N = tf.split_v( tf_vlad_word, [1,nP,nN], 0 )
+        else:
+            sp_q, sp_P, sp_N = tf.split( tf_vlad_word, [1,nP,nN], 0 )
         #sp_q=query; sp_P=definite_positives ; sp_N=definite_negatives
         #q:1x16k;   P:5x16k;    N:10x16k
 
+        euc_q_P = tf.constant(1.0) - tf.reduce_sum( tf.multiply( sp_q, sp_P ), axis=1 )
+        euc_q_N = tf.constant(1.0) - tf.reduce_sum( tf.multiply( sp_q, sp_N ), axis=1 )
+        self.dot_q_P = euc_q_P
+        self.dot_q_N = euc_q_N
 
-        # distance between sp_q and each of sp_P
-        one_a = tf.ones( [nP,1], tf.float32 )
-        a_ = tf.sub( tf.matmul( one_a, sp_q ), sp_P ) #   (1 * q - P)**2  ==> (q-P)**2
-        tf_dis_q_P = tf.reduce_mean( tf.mul( a_, a_ ), axis=1 ) #row-wise norm (L2)
+        xS = tf.reduce_min( euc_q_P ) + tf.constant( margin )
 
-
-        # distance between sp_q and each of sp_N
-        one_b = tf.ones( [nN,1], tf.float32 )
-        b_ = tf.sub( tf.matmul( one_b, sp_q ), sp_N ) #   (1 * q - P)**2  ==> (q-P)**2
-        tf_dis_q_N = tf.reduce_mean( tf.mul( b_, b_ ), axis=1 ) #row-wise norm (L2)
-
-        # SVM-hinge loss
-        # max( tf_dis_q_P ): Farthest positive sample
-        # min( tf_dis_q_N ): Nearest
-        tf_margin = tf.constant(margin, name='margin')
-        cost_ = tf.sub( tf.add( tf.reduce_max(tf_dis_q_P), tf_margin),  tf.reduce_min(tf_dis_q_N), name='svm_margin_loss' ) # max_i a - max_j b + m
-        tf_cost = tf.maximum( cost_, tf.constant(0.0), name='hinge_loss' )
-
-        return tf_cost
-
-
-
-    ## log-sum-exp loss for every pair of (d_P, d_N). d_P \in Positive samples. d_N in negative samples
-    def soft_ploss( self,tf_vlad_word, nP, nN, margin ):
-        sp_q, sp_P, sp_N = tf.split_v( tf_vlad_word, [1,nP,nN], 0 )
-        #sp_q=query; sp_P=definite_positives ; sp_N=definite_negatives
-        #q:1x16k;   P:5x16k;    N:10x16k
-
-
-        # distance between sp_q and each of sp_P
-        one_a = tf.ones( [nP,1], tf.float32 )
-        a_ = tf.sub( tf.matmul( one_a, sp_q ), sp_P ) #   (1 * q - P)**2  ==> (q-P)**2
-        tf_dis_q_P = tf.reduce_sum( tf.mul( a_, a_ ), axis=1 ) #row-wise norm (L2)
-
-
-        # distance between sp_q and each of sp_N
-        one_b = tf.ones( [nN,1], tf.float32 )
-        b_ = tf.sub( tf.matmul( one_b, sp_q ), sp_N ) #   (1 * q - P)**2  ==> (q-P)**2
-        tf_dis_q_N = tf.reduce_sum( tf.mul( b_, b_ ), axis=1 ) #row-wise norm (L2)
-
-        # form a 2D matrix for each pairwise distance difference
-        # repeat positive_dis by nN times. and negative distance by nP time. (yes this is correct...you want to do the reverse)
-        rep_P = tf.matmul( one_b, tf.expand_dims( tf_dis_q_P, 0 ) )
-        rep_N = tf.matmul( one_a, tf.expand_dims( tf_dis_q_N, 0 ) )
-
-        #pairwise difference of distances
-        pdis_diff = rep_P - tf.transpose( rep_N ) + tf.constant(margin, name='margin')
-
-        # logsumexp
-        cost = tf.reduce_logsumexp( pdis_diff )
-        hinged_cost = tf.maximum( cost, tf.constant(0.0), name='hinge_loss' )
-
-
-        # self.cost = cost
-        self.pdis_diff = pdis_diff
-        # self.rep_P = rep_P
-        # self.rep_N = rep_N
-        # self.sp_q = sp_q
-        # self.sp_P = sp_P
-        # self.sp_N = sp_N
-        self.tf_dis_q_P = tf_dis_q_P
-        self.tf_dis_q_N = tf_dis_q_N
-        return hinged_cost
+        L_vec = tf.maximum( (xS - euc_q_N), tf.constant(0.0), name='hinge_loss' )
+        L = tf.reduce_sum( L_vec )
+        return L
 
 
     ## The words are l2_normalized. Comparison with dot product as against
     ## squared distance earlier with soft_ploss()
     def soft_angular_ploss( self,tf_vlad_word, nP, nN, margin ):
-        sp_q, sp_P, sp_N = tf.split_v( tf_vlad_word, [1,nP,nN], 0 )
+        if self.TF_MAJOR_VERSION == 0:
+            sp_q, sp_P, sp_N = tf.split_v( tf_vlad_word, [1,nP,nN], 0 )
+        else:
+            sp_q, sp_P, sp_N = tf.split( tf_vlad_word, [1,nP,nN], 0 )
         #sp_q=query; sp_P=definite_positives ; sp_N=definite_negatives
         #q:1x16k;   P:5x16k;    N:10x16k
 
@@ -828,10 +873,25 @@ class VGGDescriptor:
 
     # computation of positive-set stddev.
     def positive_set_std_dev(  self,tf_vlad_word, nP, nN, scale_gamma=1.0 ):
-        sp_P, sp_N = tf.split_v( tf_vlad_word, [1+nP,nN], 0 )
+        # sp_P, sp_N = tf.split_v( tf_vlad_word, [1+nP,nN], 0 ) #orginal on v0.12
+        if self.TF_MAJOR_VERSION == 0:
+            sp_q, sp_P, sp_N = tf.split_v( tf_vlad_word, [1,nP,nN], 0 )
+        else:
+            sp_P, sp_N = tf.split( tf_vlad_word, [1+nP,nN], 0 ) # not that sp_P is actually sp_Pset
         #sp_P=similar cluster ; sp_N=outliers
         #P:6x16k;    N:10x16k
 
+
+        # New code for computation of variance.
+        # <sp_q, sp_P >
+        # q_del_P = tf.matmul( sp_q, sp_P ) # 1x8
+        # q_del_N = tf.matmul( sp_q, sp_N ) # 1x8
+        # _m = tf.reduce_mean( q_del_P )
+        # devs_squared = tf.square( q_del_P - _m )
+        # return tf.reduce_sum( devs_squared )
+
+
+        # Old Code.
         mask = np.ones( [1+nP,1+nP], dtype=bool )
         B = np.tril_indices(1+nP) #lower triangular indices
         mask[B] = False
@@ -990,7 +1050,11 @@ class VGGDescriptor:
         self.initial_t = tf.placeholder( dtype='int32')
 
         t, outputs = tf.while_loop( self.should_continue, self.iteration, [self.initial_t,initial_outputs] )
-        outputs = tf.transpose( outputs.pack(), [1,0,2] )
+
+        if self.TF_MAJOR_VERSION == 0:
+            outputs = tf.transpose( outputs.pack(), [1,0,2] )
+        else:
+            outputs = tf.transpose( outputs.stack(), [1,0,2] )
         self.nl_outputs = outputs
         return outputs
 
