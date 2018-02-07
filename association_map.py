@@ -11,7 +11,7 @@ import os
 import time
 import code
 import argparse
-
+import sys
 
 import tensorflow as tf
 import tensorflow.contrib.slim as slim
@@ -39,7 +39,10 @@ def normalize_batch( im_batch ):
     return im_batch_normalized
 
 ## Load Image
-IM = cv2.resize( cv2.imread( 'dump/270.jpg'), (320, 240) )
+INPUT_FILE_NAME = 'sample_images/a0.jpg'
+
+print 'Load Image : ', INPUT_FILE_NAME 
+IM = cv2.resize( cv2.imread( INPUT_FILE_NAME), (320, 240) )
 
 ## Network Params
 NET_TYPE = "resnet6"
@@ -74,6 +77,7 @@ feed_dict = {tf_x : im_batch_normalized,\
              vgg_obj.initial_t: 0
             }
 
+print 'Computing NetVLAD of input image'
 tff_vlad_word, tff_sm = sess.run( [tf_vlad_word, vgg_obj.nl_sm], feed_dict=feed_dict)
 Assgn_matrix = np.reshape( tff_sm, [1,60,80,-1] ).argmax( axis=-1 ) #assuming batch size = 1
 print 'tff_vlad_word.shape', tff_vlad_word.shape
@@ -81,5 +85,5 @@ print 'tff_vlad_word.shape', tff_vlad_word.shape
 colorLUT = ColorLUT()
 lut = colorLUT.lut( Assgn_matrix[0,:,:] )
 cv2.imshow( 'IM', IM )
-cv2.imshow( 'lut', cv2.resize( lut, (320,240) ) )
+cv2.imshow( 'association map', cv2.resize( lut, (320,240) ) )
 cv2.waitKey(0)
