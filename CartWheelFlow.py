@@ -5,7 +5,6 @@ import tensorflow.contrib.slim as slim
 
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
 import TerminalColors
 import code
 
