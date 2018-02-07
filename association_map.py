@@ -41,14 +41,14 @@ def normalize_batch( im_batch ):
 ## Load Image
 INPUT_FILE_NAME = 'sample_images/a0.jpg'
 
-print 'Load Image : ', INPUT_FILE_NAME 
+print 'Load Image : ', INPUT_FILE_NAME
 IM = cv2.resize( cv2.imread( INPUT_FILE_NAME), (320, 240) )
 
 ## Network Params
 NET_TYPE = "resnet6"
 PARAM_K = 16
 PARAM_model_restore = 'tf3.logs/B/model-8000'
-
+# note, the model needs to be consistent with NET_TYPE, PARAM_K. 
 
 ####################### NOTHING TO EDIT BEYONG THIS POINT ##########################################
 ## Create Network
