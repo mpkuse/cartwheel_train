@@ -9,7 +9,7 @@ Manohar Kuse <mpkuse@connect.ust.hk> <br/>
 ## Required Packages
 Panda3D - Rendering (only if you use PandaRender.py/PandaRender)<br/>
 TensorFlow - Deep learning toolkit (v.1.0+)<br/>
-PIL - Image Processing </br/>
+PIL - Image Processing <br/>
 skimage - Image Processing <br/>
 cv2 - OpenCV <br/>
 numpy - Python Math
@@ -32,17 +32,22 @@ You can also obtain the association maps (similar to ones shown in the paper).
 You just need trained models and images for which you wish to compute the
 descriptors. A few images provided in `sample_images`.
 
+Usage:
+```
+python association_map.py
+```
+
 ## Training Data
 You can request the Pitts250k dataset from : [NetVLAD: CNN architecture for weakly supervised place recognition](http://www.di.ens.fr/willow/research/netvlad/)
 
 It is also possible to train this network with a 3D model using Panda3d rendering engine. Put an issue in this repo if you wish to set it up for yourself. I believe I can help you set it up.
-Alternately, see the script `test_render.py` and try getting your panda3d to work. In the
+Alternately, see the script `test_render.py`. You need a working panda3d to work. In the
 future I will make it easy to train with 3d models (in OBJ format).
 
 Walking videos datatset with/without SLAM data. (work in progress).
 
 Additionally there is also a Google Street view API which you can crawl yourself to generate data.
-In the future will provide self collect street view data.
+In the future will provide self collected street view data.
 
 ## Trained Model
 A few Pre-trained models will be provided for comparison / reference. TODO.
@@ -53,6 +58,11 @@ A few Pre-trained models will be provided for comparison / reference. TODO.
 - ResNet6 with pairwise loss
 - VGG6 with triplet-ranking loss
 - VGG6 with pairwise loss + positive set deviation penalty.
+
+#### K=32
+
+
+#### K=64
 
 ## References
 If you use my data/code or if you compare with my results, please do cite. Also cite

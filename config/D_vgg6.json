@@ -5,7 +5,7 @@
     "SCALE_GAMMA": 0.07,
     "MINI_BATCH_SIZE": 24,
     "NET_TYPE": "vgg6",
-    "FITTING_LOSS_TYPE": "weakly_supervised_ranking_loss",
-    "ENABLE_POS_SET_DEV": false,
+    "FITTING_LOSS_TYPE": "soft_angular_ploss",
+    "ENABLE_POS_SET_DEV": true,
     "PARAM_K": 16
 }
