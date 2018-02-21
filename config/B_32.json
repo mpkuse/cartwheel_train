@@ -1,0 +1,11 @@
+{
+    "nP": 6,
+    "nN": 6,
+    "MARGIN": 0.1,
+    "SCALE_GAMMA": 0.07,
+    "MINI_BATCH_SIZE": 24,
+    "NET_TYPE": "resnet6",
+    "FITTING_LOSS_TYPE": "weakly_supervised_ranking_loss",
+    "ENABLE_POS_SET_DEV": false,
+    "PARAM_K": 32
+}

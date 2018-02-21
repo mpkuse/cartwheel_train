@@ -1,6 +1,8 @@
 """
     Plots the pos_0, neg_0 files. These file contain logging
-    of dot product of q and P_i's (positive file). q and N_j's (negative file)
+    of dot product of q and P_i's (positive file). q and N_j's (negative file).
+    These 2 files are written by train_netvlad.py when you train. usually
+    written in tf.logs/A/ (ie. log folder of the training)
 
     eg. pos_0
         <itr> <batch_i> <5-vec>
