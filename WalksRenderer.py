@@ -20,7 +20,8 @@ import cv2
 import code
 import math
 import glob
-
+import code
+import os
 #
 import TerminalColors
 tcolor = TerminalColors.bcolors()
@@ -140,6 +141,161 @@ class WalksRenderer:
         return np.concatenate( (images_q, images_sim, images_diff  ), axis=0 ).astype('float32'), np.zeros( (16,4) )
 
 
+class WalksRendererPreload:
+    def __init__( self, db_path ):
+        self.db_path = db_path
+        print tcolor.OKGREEN, 'WalksRenderer.db_path : ', db_path, tcolor.ENDC
+
+        # N is number of videos. K is the number of key frames for each video,
+        # L is the number of loop-events in that particular video
+        self.frames = [] #NxKx240x320x3
+        self.frame_id = [] #NxK
+        self.loop_info = [] #NxLx3
+
+
+        print tcolor.OKBLUE, 'Video Files : ', tcolor.ENDC
+        # for _i, file_name in enumerate( glob.glob( db_path+"/*.mkv" ) + glob.glob( db_path+"/*.mp4" ) ):
+        for _i, file_name in enumerate( glob.glob( db_path+"/Amsterdam*.mkv" ) ):
+            # Load 1/10 frames
+            fr, fr_id = self._preload_video( file_name )
+
+            print file_name,
+            if os.path.isfile( file_name+'.txt' ):
+                print 'Y'
+                l_info = np.loadtxt( file_name+'.txt' , dtype='int32', delimiter=',')
+                code.interact( local=locals() )
+            else:
+                print 'N'
+        # for _i, file_name in enumerate( ['Valparasio_Chile.mkv', 'Tokyo.mkv'] ):
+            # cap = cv2.VideoCapture( file_name )
+            #
+            # if cap.isOpened():
+            #     nFrames = cap.get( cv2.CAP_PROP_FRAME_COUNT )
+            #     print tcolor.OKBLUE, '+    %03d nFrames=%06d' %(_i, nFrames), file_name, tcolor.ENDC
+            #     self.captures.append( (cap, nFrames) )
+            # else:
+            #     print tcolor.FAIL, '~    %03d' %(_i), file_name, tcolor.ENDC
+
+    def _preload_video( self, file_name, skip=10 ):
+        # loop thru the video skip 10 frames
+        FR = []
+        FR_ID = []
+        print 'Open Video: ', file_name
+        cap = cv2.VideoCapture( file_name )
+        # code.interact( local=locals() )
+        i = -1
+        print 'toital frames : ', cap.get( cv2.CAP_PROP_FRAME_COUNT )
+        while cap.isOpened() and i < 500:
+            i = i+1
+            ret, frame = cap.read()
+            if i%skip != 0:
+                continue
+            else:
+                # if i%(10*skip) == 0:
+                print 'frame#%d for file:%s' %(i, file_name )
+            	frame_sm = cv2.resize( cv2.blur(frame, (5,5)), (320,240) )
+                FR.append( frame_sm )
+                FR_ID.append( i )
+            	print frame_sm.shape
+            	cv2.imshow( 'frame', frame_sm )
+            	if( cv2.waitKey( 10 ) & 0xFF ) == ord('q'):
+            		break
+
+        cap.release()
+        return FR, FR_ID
+
+    # Note that every image defined by (capture_id, frame_id)
+    def _query( self, n ):
+
+        to_ret = []
+        for i in range(n):
+            capture_id = np.random.randint( low=0, high=len(self.captures) ) # select any of the capture
+            frame_id = np.random.randint( low=0 , high=self.captures[ capture_id ][1] ) #for a given capture select any frame
+            to_ret.append( (capture_id, frame_id) )
+
+        return to_ret
+
+
+    def _similar_to( self, nP,capture_id, frame_id  ):
+        to_ret = []
+        for i in range( nP ):
+            # r = np.floor( np.random.normal( loc=capture_id, scale=500 ) )
+            r = np.random.randint( low=frame_id-200, high=frame_id+200 )
+
+            # bounding clipping
+            r = max( 0, int(r) )
+            r = min( r, self.captures[capture_id][1])
+
+            to_ret.append( (capture_id, r ) )
+        return to_ret
+
+
+
+    # pos_list = [ (capture_id, frame_id),  (capture_id, frame_id),   (capture_id, frame_id) ...  ]
+    def _load_images( self, pos_list, apply_distortions=False ):
+        images = []
+        for capture_id, frame_id in pos_list:
+            # print 'load', capture_id, frame_id
+            self.captures[capture_id][0].set( cv2.CAP_PROP_POS_FRAMES, frame_id )
+            ret, frame = self.captures[capture_id][0].read()
+            IM = cv2.resize( cv2.blur(frame, (5,5)), (320,240) )
+
+            # Random Distortion
+            if apply_distortions == True and np.random.rand() > 0.5: #apply random distortions to only 50% of samples
+                #TODO: Make use of RandomDistortions class (end of this file) for complicated Distortions, for now quick and dirty way
+                # # Planar rotate IM, this rotation gives black-borders, need to crop
+                # rows,cols, _ = IM.shape
+                # irot = np.random.uniform(-180,180 )#np.random.randn() * 25.
+                # M = cv2.getRotationMatrix2D((cols*.5,rows*.5),irot,1.)
+                # dst = cv2.warpAffine(IM,M,(cols,rows))
+                # IM = dst
+
+                # Planar rotation, cropped. adopted from `test_rot-test.py`
+                image_height, image_width = IM.shape[0:2]
+                image_orig = np.copy(IM)
+                irot = np.random.uniform(-180,180 )#np.random.randn() * 25.
+                # print 'irot: ', irot
+                image_rotated = rotate_image(IM, irot)
+                image_rotated_cropped = crop_around_center(
+                    image_rotated,
+                    *largest_rotated_rect(
+                        image_width,
+                        image_height,
+                        math.radians(irot)
+                    ))
+                IM = cv2.resize( image_rotated_cropped, (320,240) )
+
+
+            images.append( IM )
+        return images #np.concatenate( images, axis=1)
+
+
+    # Return nP number of positive samples, nN number of negative samples
+    def step( self, nP, nN, return_gray=False):
+        #TODO : Consider using return_gray when loading images
+
+        _q = self._query( 1 )
+
+
+        _sims = self._similar_to( nP, _q[0][0], _q[0][1] )
+        _different = self._query( nN )
+
+
+        startLoad = time.time()
+        images_q    = self._load_images( _q )
+        images_sim  = self._load_images(_sims, apply_distortions=True)
+        images_diff = self._load_images(_different)
+
+        # print 'Took %4.2fms to load images' %(1000. * (time.time() - startLoad) )
+        cv2.imshow( 'images_q', np.concatenate(images_q, axis=1) )
+        cv2.imshow( 'images_sim', np.concatenate(images_sim, axis=1) )
+        cv2.imshow( 'images_diff', np.concatenate(images_diff, axis=1) )
+
+        cv2.moveWindow( 'images_sim', 0, 300 )
+        cv2.moveWindow( 'images_diff', 0, 600 )
+        cv2.waitKey(1)
+
+        return np.concatenate( (images_q, images_sim, images_diff  ), axis=0 ).astype('float32'), np.zeros( (16,4) )
 
 
 # Rotation (borderless)
