@@ -21,10 +21,40 @@ import code
 import math
 import glob
 import code
+import random
 import os
+import pickle
 #
 import TerminalColors
 tcolor = TerminalColors.bcolors()
+
+import networkx as nx
+import matplotlib.pyplot as plt
+
+
+class WeightedRandomizer:
+    """ Class to give weighted random numbers
+
+    adopted from : https://stackoverflow.com/questions/14992521/python-weighted-random
+
+    Sample usage:
+    w = {'A': 1.0, 'B': 1.0, 'C': 18.0}
+    wr = WeightedRandomizer (w)
+    print wr.random ()
+
+    """
+
+    def __init__ (self, weights):
+        self.__max = .0
+        self.__weights = []
+        for value, weight in weights.items ():
+            self.__max += weight
+            self.__weights.append ( (self.__max, value) )
+
+    def random (self):
+        r = random.random () * self.__max
+        for ceil, value in self.__weights:
+            if ceil > r: return value
 
 
 class WalksRenderer:
@@ -143,117 +173,118 @@ class WalksRenderer:
 
 class WalksRendererPreload:
     def __init__( self, db_path ):
+        """ This will load all the videos along with loop closure data as undirected graph"""
         self.db_path = db_path
         print tcolor.OKGREEN, 'WalksRenderer.db_path : ', db_path, tcolor.ENDC
 
         # N is number of videos. K is the number of key frames for each video,
         # L is the number of loop-events in that particular video
         self.frames = [] #NxKx240x320x3
-        self.frame_id = [] #NxK
-        self.loop_info = [] #NxLx3
+        self.frame_ids = [] #NxK
+        self.graphs = []
 
 
         print tcolor.OKBLUE, 'Video Files : ', tcolor.ENDC
-        # for _i, file_name in enumerate( glob.glob( db_path+"/*.mkv" ) + glob.glob( db_path+"/*.mp4" ) ):
-        for _i, file_name in enumerate( glob.glob( db_path+"/Amsterdam*.mkv" ) ):
-            # Load 1/10 frames
-            fr, fr_id = self._preload_video( file_name )
+        list_of_video_files = glob.glob( db_path+"/*.mp4" ) + glob.glob( db_path+"/*.webm" ) +glob.glob( db_path+"/*.mkv" )
+        self.load_video_files( list_of_video_files )
 
-            print file_name,
-            if os.path.isfile( file_name+'.txt' ):
-                print 'Y'
-                l_info = np.loadtxt( file_name+'.txt' , dtype='int32', delimiter=',')
-                code.interact( local=locals() )
-            else:
-                print 'N'
-        # for _i, file_name in enumerate( ['Valparasio_Chile.mkv', 'Tokyo.mkv'] ):
-            # cap = cv2.VideoCapture( file_name )
-            #
-            # if cap.isOpened():
-            #     nFrames = cap.get( cv2.CAP_PROP_FRAME_COUNT )
-            #     print tcolor.OKBLUE, '+    %03d nFrames=%06d' %(_i, nFrames), file_name, tcolor.ENDC
-            #     self.captures.append( (cap, nFrames) )
-            # else:
-            #     print tcolor.FAIL, '~    %03d' %(_i), file_name, tcolor.ENDC
 
-    def _preload_video( self, file_name, skip=10 ):
-        # loop thru the video skip 10 frames
-        FR = []
-        FR_ID = []
-        print 'Open Video: ', file_name
-        cap = cv2.VideoCapture( file_name )
+
+        # Remove this code and the pickle files after testing is done
+        # # Save as pickles
+        pickle.dump( self.frames, open( 'self.frames.pickle', 'wb' ) )
+        pickle.dump( self.frame_ids, open( 'self.frame_ids.pickle', 'wb' ) )
+        pickle.dump( self.graphs, open( 'self.graphs.pickle', 'wb' ) )
+
+        # Load from pickles
+        # self.frames = pickle.load(  open( 'self.frames.pickle', 'rb' ) )
+        # self.frame_ids = pickle.load(  open( 'self.frame_ids.pickle', 'rb' ) )
+        # self.graphs = pickle.load(  open( 'self.graphs.pickle', 'rb' ) )
+
+
+
+
+    def _similar(self, graph_idx):
+        # Get similars
+
+        # G.degree() #degrees of all nodes
+        # G.adj() #adjacent nodes of every node
+
+        G = self.graphs[graph_idx] # select a graph
+        I = self.frames[graph_idx]
+        Ii = self.frame_ids[graph_idx]
+
+        wr = WeightedRandomizer( G.degree() )
+        n = wr.random()
+        #n = random.choice( G.nodes() ) # select a node
+
+        print 'degree of node=%d is %d' %(n, G.degree()[n])
+        print 'adj of n=%d are : %s' %( n, str(G.adj[n].keys()) )
+        L = []
+        for hn in G.adj[n].keys(): # loop over neighbours of n
+            L = L + [hn] + G.adj[hn].keys()
+            for hn1 in G.adj[hn].keys(): #loop over neighbours of neighbours of n
+                L = L + [hn1] + G.adj[hn1].keys()
+
+        L = sorted(set(L))
+        # L is not sorted uniq set of adj(adj(adj(n)))
+
+        return L
+
+
+    def step( self, nP, nN, apply_distortions=True, return_gray=False, ENABLE_IMSHOW=False):
+
+        # Choose a graph randomly to make similar choices
+        graph_idx = random.choice( range(len(self.graphs) ) )
+        L = self._similar( graph_idx )
+
+        # Choose any nP+1 from set L of graph[graph_idx]
+        I = self.frames[graph_idx]
+        Ii = self.frame_ids[graph_idx]
+        L_sampled = random.sample( L, nP+1 )
+        SSSS = [] # similar images list
+        for l in L_sampled:
+            print graph_idx, l
+            _IM =  I[ Ii.index(l) ]
+            SSSS.append( _IM )
+            # cv2.imshow( 'win', I[ Ii.index(l) ] )
+            # cv2.waitKey(0)
+
+
         # code.interact( local=locals() )
-        i = -1
-        print 'toital frames : ', cap.get( cv2.CAP_PROP_FRAME_COUNT )
-        while cap.isOpened() and i < 500:
-            i = i+1
-            ret, frame = cap.read()
-            if i%skip != 0:
-                continue
-            else:
-                # if i%(10*skip) == 0:
-                print 'frame#%d for file:%s' %(i, file_name )
-            	frame_sm = cv2.resize( cv2.blur(frame, (5,5)), (320,240) )
-                FR.append( frame_sm )
-                FR_ID.append( i )
-            	print frame_sm.shape
-            	cv2.imshow( 'frame', frame_sm )
-            	if( cv2.waitKey( 10 ) & 0xFF ) == ord('q'):
-            		break
+        # Now choose negative set
+        # Choose any nN (disimilar) not in set L
+        DDDD = []
+        for j in range( nN ):
+            # Choose graph
+            graph_idx2 = random.choice( range(len(self.graphs) ) )
+            _I = self.frames[graph_idx2]
+            _Ii = self.frame_ids[graph_idx2]
 
-        cap.release()
-        return FR, FR_ID
+            # Choose a node from this graph
+            n = random.choice( self.graphs[graph_idx2].nodes() )
 
-    # Note that every image defined by (capture_id, frame_id)
-    def _query( self, n ):
+            print graph_idx2, n
+            _IM =  _I[ _Ii.index(n) ]
+            DDDD.append( _IM )
+            # cv2.imshow( 'win', _I[ _Ii.index(n) ] )
+            # cv2.waitKey(0)
 
-        to_ret = []
-        for i in range(n):
-            capture_id = np.random.randint( low=0, high=len(self.captures) ) # select any of the capture
-            frame_id = np.random.randint( low=0 , high=self.captures[ capture_id ][1] ) #for a given capture select any frame
-            to_ret.append( (capture_id, frame_id) )
+        ######## Ready with SSSS, DDDD. Next apply distortion
 
-        return to_ret
+        OUT_S = []
+        for IM in SSSS:
+            if apply_distortions:
+                # Intensity transform
+                gamma = np.random.rand() + 0.5
+                adjusted = adjust_gamma( IM, gamma=gamma )
+                IM = adjusted
 
-
-    def _similar_to( self, nP,capture_id, frame_id  ):
-        to_ret = []
-        for i in range( nP ):
-            # r = np.floor( np.random.normal( loc=capture_id, scale=500 ) )
-            r = np.random.randint( low=frame_id-200, high=frame_id+200 )
-
-            # bounding clipping
-            r = max( 0, int(r) )
-            r = min( r, self.captures[capture_id][1])
-
-            to_ret.append( (capture_id, r ) )
-        return to_ret
-
-
-
-    # pos_list = [ (capture_id, frame_id),  (capture_id, frame_id),   (capture_id, frame_id) ...  ]
-    def _load_images( self, pos_list, apply_distortions=False ):
-        images = []
-        for capture_id, frame_id in pos_list:
-            # print 'load', capture_id, frame_id
-            self.captures[capture_id][0].set( cv2.CAP_PROP_POS_FRAMES, frame_id )
-            ret, frame = self.captures[capture_id][0].read()
-            IM = cv2.resize( cv2.blur(frame, (5,5)), (320,240) )
-
-            # Random Distortion
-            if apply_distortions == True and np.random.rand() > 0.5: #apply random distortions to only 50% of samples
-                #TODO: Make use of RandomDistortions class (end of this file) for complicated Distortions, for now quick and dirty way
-                # # Planar rotate IM, this rotation gives black-borders, need to crop
-                # rows,cols, _ = IM.shape
-                # irot = np.random.uniform(-180,180 )#np.random.randn() * 25.
-                # M = cv2.getRotationMatrix2D((cols*.5,rows*.5),irot,1.)
-                # dst = cv2.warpAffine(IM,M,(cols,rows))
-                # IM = dst
-
+            if apply_distortions == True and np.random.rand() > 0.75:
                 # Planar rotation, cropped. adopted from `test_rot-test.py`
                 image_height, image_width = IM.shape[0:2]
                 image_orig = np.copy(IM)
-                irot = np.random.uniform(-180,180 )#np.random.randn() * 25.
+                irot = np.random.uniform(-90,90 )#np.random.randn() * 25.
                 # print 'irot: ', irot
                 image_rotated = rotate_image(IM, irot)
                 image_rotated_cropped = crop_around_center(
@@ -265,37 +296,183 @@ class WalksRendererPreload:
                     ))
                 IM = cv2.resize( image_rotated_cropped, (320,240) )
 
+            if return_gray == True:
+                IM_gray = cv2.cvtColor( IM, cv2.COLOR_BGR2GRAY )
+                IM = np.expand_dims( IM_gray, axis=2 )
 
-            images.append( IM )
-        return images #np.concatenate( images, axis=1)
-
-
-    # Return nP number of positive samples, nN number of negative samples
-    def step( self, nP, nN, return_gray=False):
-        #TODO : Consider using return_gray when loading images
-
-        _q = self._query( 1 )
+            OUT_S.append( IM )
 
 
-        _sims = self._similar_to( nP, _q[0][0], _q[0][1] )
-        _different = self._query( nN )
+        OUT_D = []
+        for IM in DDDD:
+            if apply_distortions:
+                # Intensity transform
+                gamma = np.random.rand() + 0.5
+                adjusted = adjust_gamma( IM, gamma=gamma )
+                IM = adjusted
+
+            if apply_distortions and np.random.rand() > 0.75:
+                # Planar rotation, cropped. adopted from `test_rot-test.py`
+                image_height, image_width = IM.shape[0:2]
+                image_orig = np.copy(IM)
+                irot = np.random.uniform(-90,90 )#np.random.randn() * 25.
+                # print 'irot: ', irot
+                image_rotated = rotate_image(IM, irot)
+                image_rotated_cropped = crop_around_center(
+                    image_rotated,
+                    *largest_rotated_rect(
+                        image_width,
+                        image_height,
+                        math.radians(irot)
+                    ))
+                IM = cv2.resize( image_rotated_cropped, (320,240) )
+
+            if return_gray == True:
+                IM_gray = cv2.cvtColor( IM, cv2.COLOR_BGR2GRAY )
+                IM = np.expand_dims( IM_gray, axis=2 )
+
+            OUT_D.append( IM )
 
 
-        startLoad = time.time()
-        images_q    = self._load_images( _q )
-        images_sim  = self._load_images(_sims, apply_distortions=True)
-        images_diff = self._load_images(_different)
 
-        # print 'Took %4.2fms to load images' %(1000. * (time.time() - startLoad) )
-        cv2.imshow( 'images_q', np.concatenate(images_q, axis=1) )
-        cv2.imshow( 'images_sim', np.concatenate(images_sim, axis=1) )
-        cv2.imshow( 'images_diff', np.concatenate(images_diff, axis=1) )
 
-        cv2.moveWindow( 'images_sim', 0, 300 )
-        cv2.moveWindow( 'images_diff', 0, 600 )
-        cv2.waitKey(1)
 
-        return np.concatenate( (images_q, images_sim, images_diff  ), axis=0 ).astype('float32'), np.zeros( (16,4) )
+        if ENABLE_IMSHOW:
+            cv2.imshow( 'similar', np.concatenate(np.array(OUT_S), axis=1) )
+            cv2.imshow( 'dissimilar', np.concatenate(np.array(OUT_D), axis=1) )
+            cv2.waitKey(1)
+
+        return np.array( OUT_S + OUT_D ).astype('float32'), np.zeros( (1+nP+nN,4) )
+
+
+
+
+    def load_video_files( self, list_of_files ):
+        """ Given a list of files popilates self.frames, self.frame_ids, self.graphs"""
+
+        print 'Video Files: '
+        for _i, file_name in enumerate( list_of_files ):
+            print tcolor.OKBLUE, _i, '.', file_name , tcolor.ENDC
+
+        for _i, file_name in enumerate( list_of_files ):
+
+            # Make a pose-graph (pseudo) for this video.
+            print tcolor.OKBLUE, '+', file_name, tcolor.ENDC
+
+            fr, fr_id, G = self._make_undirected_graph( file_name )
+            # nx.draw_circular( G, with_labels=True )
+            # plt.show()
+
+
+            self.frames.append( fr )
+            self.frame_ids.append( fr_id )
+            self.graphs.append( G )
+
+
+    def _make_undirected_graph( self, file_name ):
+        """
+            Read the video file `file_name` and load all frames as images.
+            Also read loop-closure txt file `file_name`+.txt.
+            Return a) list of frames, b) like of position index in video
+            c) undirected graph (networkx) G.
+        """
+
+        # Load 1/10 frames
+        fr, fr_id = self._preload_video( file_name )
+
+        # Make Graph - Odometry edges
+        G = nx.Graph()
+        G.add_nodes_from( fr_id )
+
+        # Odometry edges
+        fr_odom = self._make_odom_edges( fr_id, 2 )  #[ (a,b), (a,b), ... ]
+        G.add_edges_from( fr_odom  )
+
+
+        # Load loop-closure file. It has 3 cols. 1st col is curr frame index, 2nd col prev is frame index, 3rd col is nInliers
+        print 'Open Loop Closure : ', file_name+'.txt'
+        if os.path.isfile( file_name+'.txt' ):
+            l_info = np.loadtxt( file_name+'.txt' , dtype='int32', delimiter=',')
+            print 'Found. Contains %d loop messages' %(l_info.shape[0])
+            loop_edges = self._dbowinfo_to_edgelist( l_info )
+            G.add_edges_from( loop_edges  )
+        else:
+            print 'Not Found'
+
+        return fr, fr_id, G
+
+
+    def _preload_video( self, file_name, skip=10 ):
+        # loop thru the video skip 10 frames
+        FR = []
+        FR_ID = []
+        print 'Open Video: ', file_name
+        cap = cv2.VideoCapture( file_name )
+        # code.interact( local=locals() )
+        i = -1
+        nFrames = cap.get( cv2.CAP_PROP_FRAME_COUNT )
+        print 'Preload Video : Total Frames : %d' %( nFrames )
+        print tcolor.OKGREEN, 'Loop Running', tcolor.ENDC
+        while cap.isOpened() and i < (nFrames-20):
+            i = i+1
+            try:
+                ret, frame = cap.read()
+            except:
+                code.interact( local=locals() )
+                continue
+            if i%skip != 0:
+                continue
+            else:
+                if i%(100*skip) == 0:
+                    print 'frame#%06d of %06d for file:%s' %(i, nFrames, file_name )
+            	frame_sm = cv2.resize( cv2.blur(frame, (5,5)), (320,240) )
+                FR.append( frame_sm )
+                FR_ID.append( i )
+            	# print frame_sm.shape
+            	# cv2.imshow( 'frame', frame_sm )
+            	# if( cv2.waitKey( 10 ) & 0xFF ) == ord('q'):
+            		# break
+
+        cap.release()
+        return FR, FR_ID
+
+    def _dbowinfo_to_edgelist( self, l_info ):
+        """ l_info is Nx3. 1st col is node-1, 2nd col is node-2.
+        node-1, node-2 represent a loop closure event as determined by
+        another external program.
+
+        returns [(e1,e2), (e3,e4), ... ]
+        """
+
+        #TODO: Take also the nodes of the graph as input for this function.
+        #      Only return edges which form part of this graph. ie. Dont
+        #      append an edge if it is not existant in the graph G.
+
+        E = []
+        for l in l_info:
+            E.append( (l[0], l[1]) )
+        return E
+
+    def _make_odom_edges( self, fr_id, k ):
+        """
+            fr_id : Kx1
+            k     : connections to # of prev nodes
+              [ (a,b), (a,b), ... ]
+        """
+
+        odom_edges = [ (fr_id[1], fr_id[0]) ]
+        for i in range( 2, len(fr_id) ):
+            # print '---'
+            # print fr_id[i], '<-odom->', fr_id[i-1]
+            # print fr_id[i], '<-odom->', fr_id[i-2]
+            odom_edges.append(   (fr_id[i], fr_id[i-1])    )
+            odom_edges.append(   (fr_id[i], fr_id[i-2])    )
+        return odom_edges
+
+
+
+
+
 
 
 # Rotation (borderless)
@@ -425,3 +602,11 @@ def crop_around_center(image, width, height):
     y2 = int(image_center[1] + height * 0.5)
 
     return image[y1:y2, x1:x2]
+
+def adjust_gamma(image, gamma=1.0):
+
+   invGamma = 1.0 / gamma
+   table = np.array([((i / 255.0) ** invGamma) * 255
+      for i in np.arange(0, 256)]).astype("uint8")
+
+   return cv2.LUT(image, table)
