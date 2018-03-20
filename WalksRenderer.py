@@ -24,6 +24,7 @@ import code
 import random
 import os
 import pickle
+import datetime
 #
 import TerminalColors
 tcolor = TerminalColors.bcolors()
@@ -183,23 +184,30 @@ class WalksRendererPreload:
         self.frame_ids = [] #NxK
         self.graphs = []
 
+        # Load from pickles
+        self.BBB = '/media/mpkuse/Bulk_Data/scratch_pad/'
+        # self.frames = pickle.load(  open( self.BBB+'self.frames.pickle', 'rb' ) )
+        # self.frame_ids = pickle.load(  open( self.BBB+'self.frame_ids.pickle', 'rb' ) )
+        # self.graphs = pickle.load(  open( self.BBB+'self.graphs.pickle', 'rb' ) )
 
-        print tcolor.OKBLUE, 'Video Files : ', tcolor.ENDC
-        list_of_video_files = glob.glob( db_path+"/*.mp4" ) + glob.glob( db_path+"/*.webm" ) +glob.glob( db_path+"/*.mkv" )
-        self.load_video_files( list_of_video_files )
-
+        # print tcolor.OKBLUE, 'Video Files : ', tcolor.ENDC
+        # list_of_video_files = glob.glob( db_path+"/*.mp4" ) + glob.glob( db_path+"/*.webm" ) +glob.glob( db_path+"/*.mkv" )
+        # self.load_video_files( list_of_video_files )
 
 
         # Remove this code and the pickle files after testing is done
         # # Save as pickles
-        pickle.dump( self.frames, open( 'self.frames.pickle', 'wb' ) )
-        pickle.dump( self.frame_ids, open( 'self.frame_ids.pickle', 'wb' ) )
-        pickle.dump( self.graphs, open( 'self.graphs.pickle', 'wb' ) )
+        fp = open( self.BBB+'self.frames.pickle', 'wb' )
+        pickle.dump( self.frames, fp )
+        fp.close()
+        fp = open( self.BBB+'self.frame_ids.pickle', 'wb' )
+        pickle.dump( self.frame_ids, fp )
+        fp.close()
+        fp = open( self.BBB+'self.graphs.pickle', 'wb' )
+        pickle.dump( self.graphs, fp )
+        fp.close()
 
-        # Load from pickles
-        # self.frames = pickle.load(  open( 'self.frames.pickle', 'rb' ) )
-        # self.frame_ids = pickle.load(  open( 'self.frame_ids.pickle', 'rb' ) )
-        # self.graphs = pickle.load(  open( 'self.graphs.pickle', 'rb' ) )
+
 
 
 
@@ -347,8 +355,18 @@ class WalksRendererPreload:
 
 
 
-    def load_video_files( self, list_of_files ):
-        """ Given a list of files popilates self.frames, self.frame_ids, self.graphs"""
+    def load_video_files( self, list_of_files, clear_data=False ):
+        """ Given a list of files popilates self.frames, self.frame_ids, self.graphs.
+            This function is kept separate. This logic was for larger dataset it
+            will be impossible to load everything. So say load 20 videos at a
+            time. Run a few 1000 iterations of neural net training. Then load
+            say more videos etc.
+        """
+
+        if clear_data:
+            self.frames = []
+            self.frame_ids = []
+            self.graphs = []
 
         print 'Video Files: '
         for _i, file_name in enumerate( list_of_files ):
@@ -357,7 +375,7 @@ class WalksRendererPreload:
         for _i, file_name in enumerate( list_of_files ):
 
             # Make a pose-graph (pseudo) for this video.
-            print tcolor.OKBLUE, '+', file_name, tcolor.ENDC
+            print '[%s]' %(str(datetime.datetime.now())), _i, tcolor.OKBLUE, '+', file_name, tcolor.ENDC
 
             fr, fr_id, G = self._make_undirected_graph( file_name )
             # nx.draw_circular( G, with_labels=True )
@@ -367,6 +385,18 @@ class WalksRendererPreload:
             self.frames.append( fr )
             self.frame_ids.append( fr_id )
             self.graphs.append( G )
+
+            # Remove this code and the pickle files after testing is done
+            # # Save as pickles
+            fp = open( self.BBB+'self.frames.pickle', 'wb' )
+            pickle.dump( self.frames, fp )
+            fp.close()
+            fp = open( self.BBB+'self.frame_ids.pickle', 'wb' )
+            pickle.dump( self.frame_ids, fp )
+            fp.close()
+            fp = open( self.BBB+'self.graphs.pickle', 'wb' )
+            pickle.dump( self.graphs, fp )
+            fp.close()
 
 
     def _make_undirected_graph( self, file_name ):
