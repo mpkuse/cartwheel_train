@@ -114,13 +114,13 @@ WR_BASE = './keezi_walks/'
 wr = WalksRendererPreload( WR_BASE )
 a,b = wr.step(6,6)
 # quit()
-for i in range( 50 ):
+for i in range( 500 ):
     a,b = wr.step(6,6, ENABLE_IMSHOW=True)
     print a.shape
     print b.shape
-    
+
     mj.match( a[0,:,:,:], a[1:1+6,:,:,:] )
-    cv2.waitKey(0)
+    cv2.waitKey(10)
 
 # demo_pittsburg()
 

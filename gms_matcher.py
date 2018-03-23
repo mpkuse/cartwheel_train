@@ -105,7 +105,12 @@ class GmsMatcher:
         if self.gms_matches:
             self.empty_matches()
 
-
+        try:
+            print descriptors_image1.shape, descriptors_image2.shape
+        except:
+            return None # Not keypoints in other of the images
+            import code
+            code.interact( banner="gms_matcher exception", local=locals() )
         all_matches = self.matcher.match(descriptors_image1, descriptors_image2)
         self.normalize_points(self.keypoints_image1, size1, self.normalized_points1)
         self.normalize_points(self.keypoints_image2, size2, self.normalized_points2)
@@ -330,7 +335,7 @@ class GmsMatcher:
                 cv2.circle(output, tuple(map(int, right)), 1, (0, 255, 0), 2)
 
         cv2.imshow('show', output)
-        cv2.waitKey()
+        cv2.waitKey(10)
 
 
 class Size:
