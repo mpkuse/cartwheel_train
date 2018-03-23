@@ -32,7 +32,7 @@ from WalksRenderer import WalksRenderer
 from WalksRenderer import WalksRendererPreload
 from PittsburgRenderer import PittsburgRenderer
 
-
+from MatcherGMS import MatcherGMS
 
 def demo_pittsburg():
     """ Uses the Pitssburg data set. To obtain this dataset make a
@@ -108,6 +108,7 @@ def demo_panda():
 #     # cv2.waitKey(0)
 # quit()
 
+mj = MatcherGMS()
 
 WR_BASE = './keezi_walks/'
 wr = WalksRendererPreload( WR_BASE )
@@ -117,7 +118,7 @@ for i in range( 50 ):
     a,b = wr.step(6,6, ENABLE_IMSHOW=True)
     print a.shape
     print b.shape
-
+    mj.match( a[0,:,:,:], a[1:1+6,:,:,:] )
     cv2.waitKey(0)
 
 # demo_pittsburg()
