@@ -28,8 +28,10 @@ import code
 from TimeMachineRender import TimeMachineRender
 from PandaRender import NetVLADRenderer
 from WalksRenderer import WalksRenderer
+<<<<<<< HEAD
 from WalksRenderer import WalksRendererPreload
 from PittsburgRenderer import PittsburgRenderer
+
 
 
 def demo_pittsburg():
@@ -62,11 +64,11 @@ def demo_walks():
     """
     WR_BASE = './keezi_walks/'
     wr = WalksRenderer( WR_BASE )
-    # for i in range(20):
-    #     a,b = wr.step(nP=10, nN=10)
-    #     print a.shape
-    #     print b.shape
-    #     cv2.waitKey(0)
+    for i in range(20):
+        a,b = wr.step(nP=10, nN=10)
+        print a.shape
+        print b.shape
+        cv2.waitKey(0)
     quit()
 
 
@@ -103,6 +105,7 @@ for i in range( 50 ):
     print b.shape
 
 # demo_pittsburg()
+
 # demo_walks()
 # demo_tokyotm()
 # demo_panda()

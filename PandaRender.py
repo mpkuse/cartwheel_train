@@ -1,12 +1,14 @@
 """ The training-render file. (class TrainRenderer)
         Update: This class is render only class. It does not take the mainloop()
-        control. Basically need to call function step(). Works with
-        `train_tf_decop.py`
+        control. Basically need to call function step().
 
         Defines a rendering class. Defines a spinTask (panda3d) which basicalyl
         renders 16-cameras at a time and sets them into a CPU-queue. This queue
         is emtied by calls to step(). May build more purpose-build steps()s
 
+        update: There are 3 Panda renderer in this file, viz. TrainRenderer,
+        TestRenderer, NetVLADRenderer. For comments on what each does check out
+        those classes. For general usage of the renderers see `test_render.py`
 
 """
 
@@ -18,7 +20,6 @@ from direct.stdpy.threading2 import Thread
 # Usual Math and Image Processing
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
 from scipy import interpolate
 
 # import caffe
