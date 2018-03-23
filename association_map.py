@@ -48,7 +48,7 @@ IM = cv2.resize( cv2.imread( INPUT_FILE_NAME), (320, 240) )
 NET_TYPE = "resnet6"
 PARAM_K = 16
 PARAM_model_restore = 'tf3.logs/B/model-8000'
-# note, the model needs to be consistent with NET_TYPE, PARAM_K. 
+# note, the model needs to be consistent with NET_TYPE, PARAM_K.
 
 ####################### NOTHING TO EDIT BEYONG THIS POINT ##########################################
 ## Create Network

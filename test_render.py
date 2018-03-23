@@ -28,7 +28,9 @@ import code
 from TimeMachineRender import TimeMachineRender
 from PandaRender import NetVLADRenderer
 from WalksRenderer import WalksRenderer
+# from WalksRenderer import WalksRendererPreload
 from PittsburgRenderer import PittsburgRenderer
+
 
 def demo_pittsburg():
     """ Uses the Pitssburg data set. To obtain this dataset make a
@@ -41,7 +43,7 @@ def demo_pittsburg():
     PTS_BASE = 'data_Akihiko_Torii/Pitssburg/'
     pr = PittsburgRenderer( PTS_BASE )
     for i in range(20):
-        a,b = pr.step(nP=10, nN=10, ENABLE_IMSHOW=True)
+        a,b = pr.step(nP=10, nN=10, ENABLE_IMSHOW=True, apply_distortions=False)
         print a.shape
         print b.shape
         cv2.waitKey(0)
@@ -60,11 +62,11 @@ def demo_walks():
     """
     WR_BASE = './keezi_walks/'
     wr = WalksRenderer( WR_BASE )
-    for i in range(20):
-        a,b = wr.step(nP=10, nN=10)
-        print a.shape
-        print b.shape
-        cv2.waitKey(0)
+    # for i in range(20):
+    #     a,b = wr.step(nP=10, nN=10)
+    #     print a.shape
+    #     print b.shape
+    #     cv2.waitKey(0)
     quit()
 
 
@@ -90,7 +92,30 @@ def demo_panda():
     for i in range(20):
         a,b = app.step(16)
 
-demo_pittsburg()
+
+# PTS_BASE = 'data_Akihiko_Torii/Pitssburg/'
+# pr = PittsburgRenderer( PTS_BASE )
+# from MatcherGMS import MatcherGMS
+# mj = MatcherGMS()
+#
+# for i in range(20):
+#     a,b = pr.step(nP=10, nN=10, ENABLE_IMSHOW=False, apply_distortions=False)
+#     print a.shape
+#     print b.shape
+#     mj.match( a[0,:,:,:], a[1:1+10,:,:,:] )
+#     # cv2.waitKey(0)
+# quit()
+
+WR_BASE = './keezi_walks/'
+wr = WalksRendererPreload( WR_BASE )
+a,b = wr.step(6,6)
+# quit()
+for i in range( 50 ):
+    a,b = wr.step(6,6, ENABLE_IMSHOW=True)
+    print a.shape
+    print b.shape
+
+# demo_pittsburg()
 # demo_walks()
 # demo_tokyotm()
 # demo_panda()
