@@ -118,6 +118,7 @@ for i in range( 50 ):
     a,b = wr.step(6,6, ENABLE_IMSHOW=True)
     print a.shape
     print b.shape
+    
     mj.match( a[0,:,:,:], a[1:1+6,:,:,:] )
     cv2.waitKey(0)
 

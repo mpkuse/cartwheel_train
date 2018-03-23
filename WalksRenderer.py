@@ -233,8 +233,8 @@ class WalksRendererPreload:
         n = wr.random()
         #n = random.choice( G.nodes() ) # select a node
 
-        print 'degree of node=%d is %d' %(n, G.degree()[n])
-        print 'adj of n=%d are : %s' %( n, str(G.adj[n].keys()) )
+        # print 'degree of node=%d is %d' %(n, G.degree()[n])
+        # print 'adj of n=%d are : %s' %( n, str(G.adj[n].keys()) )
         L = []
         for hn in G.adj[n].keys(): # loop over neighbours of n
             L = L + [hn] + G.adj[hn].keys()
@@ -256,11 +256,15 @@ class WalksRendererPreload:
         # Choose any nP+1 from set L of graph[graph_idx]
         I = self.frames[graph_idx]
         Ii = self.frame_ids[graph_idx]
-        L_sampled = random.sample( L, nP+1 )
+        # L_sampled = random.sample( L, nP+1 )
+        L_sampled = random.sample( set(Ii).intersection( set(L) ), nP+1 )
         SSSS = [] # similar images list
         for l in L_sampled:
-            print graph_idx, l
-            _IM =  I[ Ii.index(l) ]
+            # print graph_idx, l
+            try:
+                _IM =  I[ Ii.index(l) ]
+            except:
+                code.interact( banner="choose +ve list exception", local=locals() )
             SSSS.append( _IM )
             # cv2.imshow( 'win', I[ Ii.index(l) ] )
             # cv2.waitKey(0)
@@ -276,11 +280,18 @@ class WalksRendererPreload:
             _I = self.frames[graph_idx2]
             _Ii = self.frame_ids[graph_idx2]
 
-            # Choose a node from this graph
+            # Choose a node from this graph. Avoid last 20 items
             n = random.choice( self.graphs[graph_idx2].nodes() )
 
-            print graph_idx2, n
-            _IM =  _I[ _Ii.index(n) ]
+            while True: # index not in list choose again
+                # print graph_idx2, n
+                try:
+                    _IM =  _I[ _Ii.index(n) ]
+                    break
+                except:
+                    # print '.',
+                    n = random.choice( self.graphs[graph_idx2].nodes() )
+                    # code.interact( banner="choose -ve list exception", local=locals() )
             DDDD.append( _IM )
             # cv2.imshow( 'win', _I[ _Ii.index(n) ] )
             # cv2.waitKey(0)
