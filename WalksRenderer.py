@@ -173,7 +173,7 @@ class WalksRenderer:
 
 
 class WalksRendererPreload:
-    def __init__( self, db_path ):
+    def __init__( self, db_path, FROM_PICKLE = True ):
         """ This will load all the videos along with loop closure data as undirected graph"""
         self.db_path = db_path
         print tcolor.OKGREEN, 'WalksRenderer.db_path : ', db_path, tcolor.ENDC
@@ -185,27 +185,34 @@ class WalksRendererPreload:
         self.graphs = []
 
         # Load from pickles
-        self.BBB = '/media/mpkuse/Bulk_Data/scratch_pad/'
-        # self.frames = pickle.load(  open( self.BBB+'self.frames.pickle', 'rb' ) )
-        # self.frame_ids = pickle.load(  open( self.BBB+'self.frame_ids.pickle', 'rb' ) )
-        # self.graphs = pickle.load(  open( self.BBB+'self.graphs.pickle', 'rb' ) )
-
-        # print tcolor.OKBLUE, 'Video Files : ', tcolor.ENDC
-        # list_of_video_files = glob.glob( db_path+"/*.mp4" ) + glob.glob( db_path+"/*.webm" ) +glob.glob( db_path+"/*.mkv" )
-        # self.load_video_files( list_of_video_files )
+        self.BBB = db_path #'/media/mpkuse/Bulk_Data/scratch_pad/'
 
 
-        # Remove this code and the pickle files after testing is done
-        # # Save as pickles
-        fp = open( self.BBB+'self.frames.pickle', 'wb' )
-        pickle.dump( self.frames, fp )
-        fp.close()
-        fp = open( self.BBB+'self.frame_ids.pickle', 'wb' )
-        pickle.dump( self.frame_ids, fp )
-        fp.close()
-        fp = open( self.BBB+'self.graphs.pickle', 'wb' )
-        pickle.dump( self.graphs, fp )
-        fp.close()
+        if FROM_PICKLE:
+            print 'READ ', self.BBB+'self.frames.pickle'
+            print 'READ ', self.BBB+'self.frame_ids.pickle'
+            print 'READ ', self.BBB+'self.graphs.pickle'
+            self.frames = pickle.load(  open( self.BBB+'self.frames.pickle', 'rb' ) )
+            self.frame_ids = pickle.load(  open( self.BBB+'self.frame_ids.pickle', 'rb' ) )
+            self.graphs = pickle.load(  open( self.BBB+'self.graphs.pickle', 'rb' ) )
+        else:
+            print tcolor.OKBLUE, 'Video Files : ', tcolor.ENDC
+            # list_of_video_files = glob.glob( db_path+"/*.mp4" ) + glob.glob( db_path+"/*.webm" ) +glob.glob( db_path+"/*.mkv" )
+            list_of_video_files = glob.glob( db_path+"/Waterfall_drone.mp4" ) + glob.glob( db_path+"/Vegas_night_drone.mp4" ) + glob.glob( db_path+"/Windmills_drone.mp4" )
+            self.load_video_files( list_of_video_files )
+
+
+        # # Remove this code and the pickle files after testing is done
+        # # # Save as pickles
+        # fp = open( self.BBB+'self.frames.pickle', 'wb' )
+        # pickle.dump( self.frames, fp )
+        # fp.close()
+        # fp = open( self.BBB+'self.frame_ids.pickle', 'wb' )
+        # pickle.dump( self.frame_ids, fp )
+        # fp.close()
+        # fp = open( self.BBB+'self.graphs.pickle', 'wb' )
+        # pickle.dump( self.graphs, fp )
+        # fp.close()
 
 
 
@@ -355,7 +362,7 @@ class WalksRendererPreload:
 
 
 
-    def load_video_files( self, list_of_files, clear_data=False ):
+    def load_video_files( self, list_of_files, clear_data=False, save_intermediate_to_pickle=True ):
         """ Given a list of files popilates self.frames, self.frame_ids, self.graphs.
             This function is kept separate. This logic was for larger dataset it
             will be impossible to load everything. So say load 20 videos at a
@@ -386,17 +393,21 @@ class WalksRendererPreload:
             self.frame_ids.append( fr_id )
             self.graphs.append( G )
 
-            # Remove this code and the pickle files after testing is done
-            # # Save as pickles
-            fp = open( self.BBB+'self.frames.pickle', 'wb' )
-            pickle.dump( self.frames, fp )
-            fp.close()
-            fp = open( self.BBB+'self.frame_ids.pickle', 'wb' )
-            pickle.dump( self.frame_ids, fp )
-            fp.close()
-            fp = open( self.BBB+'self.graphs.pickle', 'wb' )
-            pickle.dump( self.graphs, fp )
-            fp.close()
+            if save_intermediate_to_pickle:
+                # Remove this code and the pickle files after testing is done
+                # # Save as pickles
+                print 'Save: ', self.BBB+'self.frames.pickle'
+                print 'Save: ', self.BBB+'self.frame_ids.pickle'
+                print 'Save: ', self.BBB+'self.graphs.pickle'
+                fp = open( self.BBB+'self.frames.pickle', 'wb' )
+                pickle.dump( self.frames, fp )
+                fp.close()
+                fp = open( self.BBB+'self.frame_ids.pickle', 'wb' )
+                pickle.dump( self.frame_ids, fp )
+                fp.close()
+                fp = open( self.BBB+'self.graphs.pickle', 'wb' )
+                pickle.dump( self.graphs, fp )
+                fp.close()
 
 
     def _make_undirected_graph( self, file_name ):

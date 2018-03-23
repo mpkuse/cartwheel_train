@@ -28,7 +28,6 @@ import code
 from TimeMachineRender import TimeMachineRender
 from PandaRender import NetVLADRenderer
 from WalksRenderer import WalksRenderer
-<<<<<<< HEAD
 from WalksRenderer import WalksRendererPreload
 from PittsburgRenderer import PittsburgRenderer
 
@@ -103,6 +102,7 @@ for i in range( 50 ):
     a,b = wr.step(6,6, ENABLE_IMSHOW=True)
     print a.shape
     print b.shape
+    cv2.waitKey(0)
 
 # demo_pittsburg()
 
