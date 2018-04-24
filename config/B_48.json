@@ -7,5 +7,6 @@
     "NET_TYPE": "resnet6",
     "FITTING_LOSS_TYPE": "weakly_supervised_ranking_loss",
     "ENABLE_POS_SET_DEV": false,
-    "PARAM_K": 48
+    "PARAM_K": 48,
+    "BASE_LEARNING_RATE": 0.0001
 }

@@ -24,6 +24,7 @@ import numpy as np
 import cv2
 import time
 import code
+import glob
 
 from TimeMachineRender import TimeMachineRender
 from PandaRender import NetVLADRenderer
@@ -32,7 +33,8 @@ from WalksRenderer import WalksRenderer
 from WalksRenderer import WalksRendererPreload
 from PittsburgRenderer import PittsburgRenderer
 
-from MatcherGMS import MatcherGMS
+# from FeatureMatcher import MatcherGMS
+# from FeatureMatcher import MatcherDaisy
 
 def demo_pittsburg():
     """ Uses the Pitssburg data set. To obtain this dataset make a
@@ -108,18 +110,29 @@ def demo_panda():
 #     # cv2.waitKey(0)
 # quit()
 
-mj = MatcherGMS()
+# mj = MatcherGMS()
+# mdaisy = MatcherDaisy()
 
 WR_BASE = './keezi_walks/'
-wr = WalksRendererPreload( WR_BASE )
+list_of_video_files =  glob.glob( WR_BASE+"/Waterfall_drone.mp4" ) + glob.glob( WR_BASE+"/Vegas_night_drone.mp4" ) + glob.glob( WR_BASE+"/Windmills_drone.mp4" )
+wr = WalksRendererPreload( WR_BASE, FROM_PICKLE=True, list_of_video_files=list_of_video_files, CACHE_PICKLES=True )
+
+# PTS_BASE = 'data_Akihiko_Torii/Pitssburg/'
+# wr = PittsburgRenderer( PTS_BASE )
+
 a,b = wr.step(6,6)
 # quit()
-for i in range( 500 ):
-    a,b = wr.step(6,6, ENABLE_IMSHOW=True)
+idx = 0
+for i in range( 150 ):
+    a,b = wr.step(6,6, ENABLE_IMSHOW=True, apply_distortions=False)
     print a.shape
     print b.shape
 
-    mj.match( a[0,:,:,:], a[1:1+6,:,:,:] )
+
+
+    # mj.match( a[0,:,:,:], a[1:1+6,:,:,:] )
+    # mdaisy.match_me( a[0,:,:,:], a[1,:,:,:] )
+    # mdaisy.match_me_simple( a[0,:,:,:], a[1,:,:,:] )
     cv2.waitKey(10)
 
 # demo_pittsburg()

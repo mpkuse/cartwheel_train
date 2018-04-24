@@ -173,8 +173,12 @@ class WalksRenderer:
 
 
 class WalksRendererPreload:
-    def __init__( self, db_path, FROM_PICKLE = True ):
-        """ This will load all the videos along with loop closure data as undirected graph"""
+    def __init__( self, db_path, FROM_PICKLE = True, CACHE_PICKLES=False, list_of_video_files=None ):
+        """ This will load all the videos along with loop closure data as undirected graph.
+            list_of_video_files : if none, means all
+
+            if FROM_PICKLE is true, than list_of_video_files will be ignored
+        """
         self.db_path = db_path
         print tcolor.OKGREEN, 'WalksRenderer.db_path : ', db_path, tcolor.ENDC
 
@@ -197,22 +201,30 @@ class WalksRendererPreload:
             self.graphs = pickle.load(  open( self.BBB+'self.graphs.pickle', 'rb' ) )
         else:
             print tcolor.OKBLUE, 'Video Files : ', tcolor.ENDC
-            # list_of_video_files = glob.glob( db_path+"/*.mp4" ) + glob.glob( db_path+"/*.webm" ) +glob.glob( db_path+"/*.mkv" )
-            list_of_video_files = glob.glob( db_path+"/Waterfall_drone.mp4" ) + glob.glob( db_path+"/Vegas_night_drone.mp4" ) + glob.glob( db_path+"/Windmills_drone.mp4" )
-            self.load_video_files( list_of_video_files )
+            if list_of_video_files is None:
+                list_of_video_files = glob.glob( db_path+"/*.mp4" ) + glob.glob( db_path+"/*.webm" ) +glob.glob( db_path+"/*.mkv" )
+            # list_of_video_files =  glob.glob( db_path+"/Waterfall_drone.mp4" ) + glob.glob( db_path+"/Vegas_night_drone.mp4" ) + glob.glob( db_path+"/Windmills_drone.mp4" )
+            self.load_video_files( list_of_video_files, save_intermediate_to_pickle=CACHE_PICKLES )
 
+
+        # Graph choicer (weighted random number generation)
+        _weighting = {}
+        for ggg in range( len(self.graphs) ):
+            _weighting[ str(ggg) ] = len(self.graphs[ggg])
+        self.wr_2 = WeightedRandomizer( _weighting )
 
         # # Remove this code and the pickle files after testing is done
-        # # # Save as pickles
-        # fp = open( self.BBB+'self.frames.pickle', 'wb' )
-        # pickle.dump( self.frames, fp )
-        # fp.close()
-        # fp = open( self.BBB+'self.frame_ids.pickle', 'wb' )
-        # pickle.dump( self.frame_ids, fp )
-        # fp.close()
-        # fp = open( self.BBB+'self.graphs.pickle', 'wb' )
-        # pickle.dump( self.graphs, fp )
-        # fp.close()
+        # # Save as pickles
+        if CACHE_PICKLES:
+            fp = open( self.BBB+'self.frames.pickle', 'wb' )
+            pickle.dump( self.frames, fp )
+            fp.close()
+            fp = open( self.BBB+'self.frame_ids.pickle', 'wb' )
+            pickle.dump( self.frame_ids, fp )
+            fp.close()
+            fp = open( self.BBB+'self.graphs.pickle', 'wb' )
+            pickle.dump( self.graphs, fp )
+            fp.close()
 
 
 
@@ -250,7 +262,15 @@ class WalksRendererPreload:
     def step( self, nP, nN, apply_distortions=True, return_gray=False, ENABLE_IMSHOW=False):
 
         # Choose a graph randomly to make similar choices
-        graph_idx = random.choice( range(len(self.graphs) ) )
+
+
+        # unweighted graph choice
+        #graph_idx = random.choice( range(len(self.graphs) ) )
+
+        # weighted graph choice, proportional to number of frames in a graph
+        graph_idx = int(self.wr_2.random())
+        # code.interact( local=locals() )
+
         L = self._similar( graph_idx )
 
         # Choose any nP+1 from set L of graph[graph_idx]

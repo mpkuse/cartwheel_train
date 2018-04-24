@@ -1,5 +1,5 @@
 {
-    "nP": 6,
+    "nP": 7,
     "nN": 6,
     "MARGIN": 0.1,
     "SCALE_GAMMA": 0.07,
@@ -7,5 +7,6 @@
     "NET_TYPE": "resnet6",
     "FITTING_LOSS_TYPE": "soft_angular_ploss",
     "ENABLE_POS_SET_DEV": true,
-    "PARAM_K": 16
+    "PARAM_K": 16,
+    "BASE_LEARNING_RATE": 0.00003
 }

@@ -617,9 +617,15 @@ class VGGDescriptor:
     #         return net
 
 
-    def network( self, inputs, is_training, net_type ):
-        return self.vgg16( inputs, is_training, net_type )
+    # Old implementation which accepted normalized input. No more in use. Mark for removal
+    #def network( self, inputs, is_training, net_type ):
+    #    return self.vgg16( inputs, is_training, net_type )
         # Eventually, rename the function vgg16() as network().
+
+    def network( self, unnormalized_inputs, is_training, net_type ):
+        inputs = tf.map_fn( lambda frame: tf.image.per_image_standardization(frame), unnormalized_inputs )
+
+        return self.vgg16( inputs, is_training, net_type )
 
     # vggnet16. is_training is a placeholder boolean
     def vgg16( self, inputs, is_training, net_type="resnet6" ):

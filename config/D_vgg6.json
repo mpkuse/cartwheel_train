@@ -7,5 +7,6 @@
     "NET_TYPE": "vgg6",
     "FITTING_LOSS_TYPE": "soft_angular_ploss",
     "ENABLE_POS_SET_DEV": true,
-    "PARAM_K": 16
+    "PARAM_K": 16,
+    "BASE_LEARNING_RATE": 0.0001
 }

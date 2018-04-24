@@ -225,6 +225,7 @@ NET_TYPE =           FILE_PARAMS['NET_TYPE'] #currently ["vgg6", "resnet6"]
 FITTING_LOSS_TYPE =  FILE_PARAMS['FITTING_LOSS_TYPE'] # currently ["soft_angular_ploss", "weakly_supervised_ranking_loss" ]
 ENABLE_POS_SET_DEV = FILE_PARAMS['ENABLE_POS_SET_DEV']
 PARAM_K =            FILE_PARAMS['PARAM_K']
+BASE_LEARNING_RATE = FILE_PARAMS['BASE_LEARNING_RATE']
 ENABLE_IMSHOW = PARAM_imshow
 #TODO: Validate these values. Currently working on trust that all these are OK values.
 # Dont break my trust... :).
@@ -249,7 +250,7 @@ is_training = tf.placeholder( tf.bool, [], name='is_training')
 
 
 vgg_obj = VGGDescriptor(K=PARAM_K, D=256, N=60*80, b=learning_batch_size)
-# tf_vlad_word = vgg_obj.vgg16(tf_x, is_training)
+# tf_vlad_word = vgg_obj.vgg16(tf_x, is_training) #mark for removal. DO not use the function vgg16()
 tf_vlad_word = vgg_obj.network(tf_x, is_training, net_type=NET_TYPE )
 
 
@@ -416,6 +417,7 @@ FILE_PARAMS['NET_TYPE'] = NET_TYPE
 FILE_PARAMS['FITTING_LOSS_TYPE'] = FITTING_LOSS_TYPE
 FILE_PARAMS['ENABLE_POS_SET_DEV'] = ENABLE_POS_SET_DEV
 FILE_PARAMS['PARAM_K'] = PARAM_K
+FILE_PARAMS['BASE_LEARNING_RATE'] = BASE_LEARNING_RATE
 
 # Print
 for __knk in FILE_PARAMS.keys():
@@ -443,8 +445,8 @@ with open( out_debug_config_filename , 'w' ) as fp:
 # Preloading image folder 000
 # app.preload_all_images( folder_list=[0] )
 
-WALKS_BASE = './keezi_walks/'
-app = WalksRendererPreload( WALKS_BASE )
+WALKS_BASE = './keezi_walks/full_data_pickles/'
+app = WalksRendererPreload( WALKS_BASE, FROM_PICKLE=True )
 
 n_positives = nP #5
 n_negatives = nN #10
@@ -478,16 +480,31 @@ while True:
         while im_batch is None: #if queue not sufficiently filled, try again
             im_batch, label_batch = app.step(nP=n_positives, nN=n_negatives, return_gray=False, ENABLE_IMSHOW=ENABLE_IMSHOW)
 
-        im_batch_normalized = normalize_batch( im_batch )
+            # Old implementation where the input was expected as normalized.
+        # im_batch_normalized = normalize_batch( im_batch )
+        #
+        #
+        # #remember to set tf_x to 16,240,320,1 if using grays or to 16,240,320,3 if using 3-channels
+        #
+        # #vgg_obj.initial_t is for the loopy-tensorflow (tf.while_loop)
+        # feed_dict = {tf_x : im_batch_normalized,\
+        #              is_training:True,\
+        #              vgg_obj.initial_t: 0
+        #             }
+        #
+
+
+
+        # im_batch_normalized = normalize_batch( im_batch )
+
 
         #remember to set tf_x to 16,240,320,1 if using grays or to 16,240,320,3 if using 3-channels
 
         #vgg_obj.initial_t is for the loopy-tensorflow (tf.while_loop)
-        feed_dict = {tf_x : im_batch_normalized,\
+        feed_dict = {tf_x : im_batch,\
                      is_training:True,\
                      vgg_obj.initial_t: 0
                     }
-
 
 
         # print 'tf.run()', i_minibatch, im_batch.shape, im_batch_normalized.shape
@@ -519,7 +536,9 @@ while True:
         print  tcolor.UNDERLINE, '(%4.3f)' %(tff_pos_set_dev), tcolor.ENDC,
     print
 
-    cur_lr = get_learning_rate(tf_iteration, 0.0001)
+
+    # originally 0.0001
+    cur_lr = get_learning_rate(tf_iteration, BASE_LEARNING_RATE )
     _, summary_exec,_ = tensorflow_session.run( [train_step,summary_op,tf_batch_success_ratio], feed_dict={tf_lr: cur_lr, tf_batch_success_ratio:n_zero_tff_costs } )
 
     # print '%3d(%8.2fms) : cost=%-8.3f cc_cost=%-8.3f fit_loss=%-8.6f reg_loss=%-8.3f n_zero_costs=%d/%d' %(tf_iteration, 1000.*(time.time() - startTime), mbatch_total_cost, tff_cc_cost, (tff_cc_cost-regloss*mini_batch), regloss*mini_batch, n_zero_tff_costs, mini_batch)
