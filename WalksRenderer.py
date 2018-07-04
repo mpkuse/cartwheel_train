@@ -271,13 +271,24 @@ class WalksRendererPreload:
         graph_idx = int(self.wr_2.random())
         # code.interact( local=locals() )
 
+
         L = self._similar( graph_idx )
 
         # Choose any nP+1 from set L of graph[graph_idx]
         I = self.frames[graph_idx]
         Ii = self.frame_ids[graph_idx]
         # L_sampled = random.sample( L, nP+1 )
-        L_sampled = random.sample( set(Ii).intersection( set(L) ), nP+1 )
+
+        intersection_set = set(Ii).intersection( set(L) )
+        if len(intersection_set) >= (nP + 1):
+            L_sampled = random.sample( intersection_set, nP+1 )
+        else:
+            # Trying to sample more than there are elements
+            print 'Trying to sample more than there are elements'
+            L_sampled = random.sample( intersection_set, len(intersection_set) ) +\
+                        random.sample( intersection_set, nP+1-len(intersection_set ) )
+            code.interact( local=locals() )
+
         SSSS = [] # similar images list
         for l in L_sampled:
             # print graph_idx, l
@@ -490,7 +501,7 @@ class WalksRendererPreload:
             try:
                 ret, frame = cap.read()
             except:
-                code.interact( local=locals() )
+                code.interact( local=locals(), banner="_preload_video" )
                 continue
             if i%skip != 0:
                 continue

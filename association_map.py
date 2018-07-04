@@ -26,20 +26,20 @@ from ColorLUT import ColorLUT
 import TerminalColors
 tcolor = TerminalColors.bcolors()
 
-## M is a 2D matrix
-def zNormalize(M):
-    return (M-M.mean())/(M.std()+0.0001)
-
-def normalize_batch( im_batch ):
-    im_batch_normalized = np.zeros(im_batch.shape)
-    for b in range(im_batch.shape[0]):
-        for ch in range(im_batch.shape[3]):
-                im_batch_normalized[b,:,:,ch] = zNormalize( im_batch[b,:,:,ch])
-
-    return im_batch_normalized
+# ## M is a 2D matrix
+# def zNormalize(M):
+#     return (M-M.mean())/(M.std()+0.0001)
+#
+# def normalize_batch( im_batch ):
+#     im_batch_normalized = np.zeros(im_batch.shape)
+#     for b in range(im_batch.shape[0]):
+#         for ch in range(im_batch.shape[3]):
+#                 im_batch_normalized[b,:,:,ch] = zNormalize( im_batch[b,:,:,ch])
+#
+#     return im_batch_normalized
 
 ## Load Image
-INPUT_FILE_NAME = 'sample_images/a0.jpg'
+INPUT_FILE_NAME = 'sample_images/c0.jpg'
 
 print 'Load Image : ', INPUT_FILE_NAME
 IM = cv2.resize( cv2.imread( INPUT_FILE_NAME), (320, 240) )
@@ -48,6 +48,7 @@ IM = cv2.resize( cv2.imread( INPUT_FILE_NAME), (320, 240) )
 NET_TYPE = "resnet6"
 PARAM_K = 16
 PARAM_model_restore = 'tf3.logs/B/model-8000'
+# PARAM_model_restore = 'tmp.logs/D/model-13000'
 # note, the model needs to be consistent with NET_TYPE, PARAM_K.
 
 ####################### NOTHING TO EDIT BEYONG THIS POINT ##########################################
@@ -70,9 +71,10 @@ tensorflow_saver.restore( sess, PARAM_model_restore )
 
 ## sess.run
 im_batch = np.expand_dims( IM.astype('float32'), 0 )
-im_batch_normalized = normalize_batch( im_batch )
+im_batch_unnormalized = im_batch #normalize_batch( im_batch )
+# explicit normalization not required, since the VGGDescription class was modified. It can not z-normalize image using tensorflow operation which is more efficient.
 
-feed_dict = {tf_x : im_batch_normalized,\
+feed_dict = {tf_x : im_batch_unnormalized,\
              is_training:True,\
              vgg_obj.initial_t: 0
             }

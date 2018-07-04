@@ -440,13 +440,13 @@ with open( out_debug_config_filename , 'w' ) as fp:
 # TTM_BASE = 'data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
 # app = TimeMachineRender(TTM_BASE)
 
-# PTS_BASE = 'data_Akihiko_Torii/Pitssburg/'
-# app = PittsburgRenderer( PTS_BASE )
+PTS_BASE = 'data_Akihiko_Torii/Pitssburg/'
+app = PittsburgRenderer( PTS_BASE )
 # Preloading image folder 000
 # app.preload_all_images( folder_list=[0] )
 
-WALKS_BASE = './keezi_walks/full_data_pickles/'
-app = WalksRendererPreload( WALKS_BASE, FROM_PICKLE=True )
+# WALKS_BASE = './keezi_walks/full_data_pickles/'
+# app = WalksRendererPreload( WALKS_BASE, FROM_PICKLE=True )
 
 n_positives = nP #5
 n_negatives = nN #10
