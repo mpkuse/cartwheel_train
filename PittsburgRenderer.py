@@ -129,14 +129,18 @@ class PittsburgRenderer:
 
         return L
 
-    def _get_images( self, L, apply_distortions, return_gray ):
+    def _get_images( self, L, apply_distortions, return_gray, resize ):
         A = []
         for l in L:
             # print l
             fname = self._tuple_to_filename( l )
             # print 'Load Image', fname
             try:
-                IM = cv2.resize( cv2.imread( fname ) , (320,240)  )
+                if resize is None:
+                    IM = cv2.imread( fname )
+                else:
+                    assert(len(resize) == 2)
+                    IM = cv2.resize( cv2.imread( fname ) , (320,240)  )
             except:
                 IM = np.zeros( (240, 320, 3) ).astype('uint8')
 
@@ -172,19 +176,20 @@ class PittsburgRenderer:
 
 
 
-            A.append( IM[:,:,::-1] )
+            # A.append( IM[:,:,::-1] ) # return rgb
+            A.append( IM[:,:,:] )
 
         return np.array(A)
 
-    def step( self, nP, nN, apply_distortions=True, return_gray=False, ENABLE_IMSHOW=False ):
+    def step( self, nP, nN, apply_distortions=True, return_gray=False, resize=None, ENABLE_IMSHOW=False ):
         # return self.preload_step( nP, nN, apply_distortions, return_gray, ENABLE_IMSHOW )
         q_tup = self._query()
         sim_tup = self._similar_to( nP, q_tup)
         dif_tup = self._different_than( nN, q_tup )
 
-        q_im = self._get_images( [q_tup], apply_distortions=apply_distortions, return_gray=return_gray )
-        sim_im = self._get_images( sim_tup, apply_distortions=apply_distortions, return_gray=return_gray )
-        dif_im = self._get_images( dif_tup, apply_distortions=apply_distortions, return_gray=return_gray )
+        q_im = self._get_images( [q_tup], apply_distortions=apply_distortions, return_gray=return_gray, resize=resize )
+        sim_im = self._get_images( sim_tup, apply_distortions=apply_distortions, return_gray=return_gray, resize=resize )
+        dif_im = self._get_images( dif_tup, apply_distortions=apply_distortions, return_gray=return_gray, resize=resize )
 
         if ENABLE_IMSHOW:
             cv2.imshow( 'q_im', np.concatenate( q_im, axis=1)[:,:,::-1] )
