@@ -15,123 +15,14 @@ import numpy as np
 
 import cv2
 
-# Writing your own custom layers
-class MyLayer(Layer):
+# Keras CUstom Implementation
+from CustomNets import NetVLADLayer, make_vgg
 
-    def __init__(self, output_dim, **kwargs):
-        self.output_dim = output_dim
-        super(MyLayer, self).__init__(**kwargs)
-
-    def build(self, input_shape):
-        # Create a trainable weight variable for this layer.
-        self.kernel = self.add_weight(name='kernel',
-                                      shape=(input_shape[1], self.output_dim),
-                                      initializer='uniform',
-                                      trainable=True)
-        super(MyLayer, self).build(input_shape)  # Be sure to call this at the end
-
-    def call(self, x):
-        return K.dot(x, self.kernel)
-
-    def compute_output_shape(self, input_shape):
-        return (input_shape[0], self.output_dim)
+import tensorflow as tf
+run_opts = tf.RunOptions(report_tensor_allocations_upon_oom = True)
 
 
-class NetVLADLayer( Layer ):
-
-    def __init__( self, num_clusters, **kwargs ):
-        self.num_clusters = num_clusters
-        super(NetVLADLayer, self).__init__(**kwargs)
-
-    def build( self, input_shape ):
-        self.K = self.num_clusters
-        self.D = input_shape[-1]
-
-        self.kernel = self.add_weight( name='kernel',
-                                    shape=(1,1,self.D,self.K),
-                                    initializer='uniform',
-                                    trainable=True )
-
-        self.bias = self.add_weight( name='bias',
-                                    shape=(1,1,self.K),
-                                    initializer='uniform',
-                                    trainable=True )
-
-        self.C = self.add_weight( name='cluster_centers',
-                                shape=[1,1,1,self.D,self.K],
-                                initializer='uniform',
-                                trainable=True)
-
-    def call( self, x ):
-        # soft-assignment.
-        s = K.conv2d( x, self.kernel, padding='same' ) + self.bias
-        a = K.softmax( s )
-        self.amap = K.argmax( a, -1 )
-        print 'amap.shape', self.amap.shape
-
-        # Dims used hereafter: batch, H, W, desc_coeff, cluster
-        a = K.expand_dims( a, -2 )
-        print 'a.shape=',a.shape
-
-        # Core
-        v = K.expand_dims(x, -1) + self.C
-        print 'v.shape', v.shape
-        v = a * v
-        print 'v.shape', v.shape
-        v = K.sum(v, axis=[1, 2])
-        print 'v.shape', v.shape
-        v = K.permute_dimensions(v, pattern=[0, 2, 1])
-        print 'v.shape', v.shape
-        #v.shape = None x K x D
-
-        # Normalize v (Intra Normalization)
-        v = K.l2_normalize( v, axis=-1 )
-        v = K.batch_flatten( v )
-        v = K.l2_normalize( v, axis=-1 )
-
-        return v
-
-    def compute_output_shape( self, input_shape ):
-        # return (input_shape[0], self.v.shape[-1].value )
-        return (input_shape[0], self.K*self.D )
-
-
-def make_vgg( input_img ):
-
-    x_64 = keras.layers.Conv2D( 64, (3,3), padding='same', activation='relu' )( input_img )
-    # BN
-    x_64 = keras.layers.Conv2D( 64, (3,3), padding='same', activation='relu' )( x_64 )
-    # BN
-    x_64 = keras.layers.MaxPooling2D( pool_size=(2,2), padding='same' )( x_64 )
-
-
-    x_128 = keras.layers.Conv2D( 128, (3,3), padding='same', activation='relu' )( x_64 )
-    # BN
-    x_128 = keras.layers.Conv2D( 128, (3,3), padding='same', activation='relu' )( x_128 )
-    # BN
-    x_128 = keras.layers.MaxPooling2D( pool_size=(2,2), padding='same' )( x_128 )
-
-
-    x_256 = keras.layers.Conv2D( 256, (3,3), padding='same', activation='relu' )( x_128 )
-    # BN
-    x_256 = keras.layers.Conv2D( 256, (3,3), padding='same', activation='relu' )( x_256 )
-    # BN
-    x_256 = keras.layers.MaxPooling2D( pool_size=(2,2), padding='same' )( x_256 )
-
-
-    x_512 = keras.layers.Conv2D( 512, (3,3), padding='same', activation='relu' )( x_256 )
-    # BN
-    x_512 = keras.layers.Conv2D( 512, (3,3), padding='same', activation='relu' )( x_512 )
-    # BN
-    x_512 = keras.layers.MaxPooling2D( pool_size=(2,2), padding='same' )( x_512 )
-
-
-    x = keras.layers.Conv2DTranspose( 32, (5,5), strides=8, padding='same' )( x_512 )
-
-    return x
-
-
-
+# Data
 from TimeMachineRender import TimeMachineRender
 # from PandaRender import NetVLADRenderer
 from WalksRenderer import WalksRenderer
@@ -142,13 +33,16 @@ if __name__ == '__main__': # Testing renderers
     nP = 2
     nN = 2
 
+    #------
+    # Load data on RAM
+    #------
 
     PTS_BASE = '/Bulk_Data/data_Akihiko_Torii/Pitssburg/'
     pr = PittsburgRenderer( PTS_BASE )
     D = []
-    for s in range(2000):
+    for s in range(2500):
         print 'get a sample #', s
-        a,_ = pr.step(nP=nP, nN=nN, return_gray=False, resize=None, apply_distortions=False, ENABLE_IMSHOW=False)
+        a,_ = pr.step(nP=nP, nN=nN, return_gray=False, resize=(240,320), apply_distortions=False, ENABLE_IMSHOW=False)
         print a.shape
         D.append( a )
         # for i in range( a.shape[0] ):
@@ -160,7 +54,9 @@ if __name__ == '__main__': # Testing renderers
     # qu = D[:,0:1,:,:,:]  #50 x 1        x 640 x 480 x 3
     # pu = D[:,1:nP+1,:,:,:] #50 x nP       x 640 x 480 x 3
     # nu = D[:,1+nP:1+nP+nN:,:,:,:]  #50 x nN       x 640 x 480 x 3
-
+    image_nrows = D.shape[2] #480
+    image_ncols = D.shape[3] #640
+    image_nchnl = D.shape[4] #3
 
 
 # if __name__ == '__main__':
@@ -168,11 +64,11 @@ if __name__ == '__main__': # Testing renderers
     #-----
     # Setting Up core computation
     #-----
-    input_img = keras.layers.Input( shape=(20, 20, 3 ) )
+    input_img = keras.layers.Input( shape=(image_nrows, image_ncols, image_nchnl ) )
     # cnn = input_img
     cnn = make_vgg( input_img )
 
-    out = NetVLADLayer(num_clusters = 4)( cnn )
+    out = NetVLADLayer(num_clusters = 16)( cnn )
     # code.interact( local=locals() )
     model = keras.models.Model( inputs=input_img, outputs=out )
 
@@ -181,16 +77,11 @@ if __name__ == '__main__': # Testing renderers
 
 
     #-----
-    # 3way siamese / Loss FUnction
+    # 3way siamese / Loss Function
     #-----
     #
     # Inputs
 
-
-    # TODO: This 480x640 can be infered from D
-    image_nrows = D.shape[2] #480
-    image_ncols = D.shape[3] #640
-    image_nchnl = D.shape[4] #3
     im_q = keras.layers.Input( shape=(image_nrows,image_ncols,image_nchnl), name='query_image' )
 
     im_P = []
@@ -212,13 +103,13 @@ if __name__ == '__main__': # Testing renderers
     outP = []
     for i in range( nP ):
         # outP.append( model( im_P[i] ) )
-        outP.append( keras.layers.dot( [ outq, model(im_P[i]) ], -1 ) )
+        outP.append( keras.layers.dot( [ outq, model(im_P[i]) ], -1, name='q_P_%d'%(i) ) )
 
     # <neta_q, neta_N{i}> \forall i
     outN = []
     for i in range( nN ):
         # outN.append( model( im_N[i] ) )
-        outN.append( keras.layers.dot( [outq, model(im_N[i])], -1 ) )
+        outN.append( keras.layers.dot( [outq, model(im_N[i])], -1, name='q_N_%d' %(i) ) )
 
 
     #
@@ -245,7 +136,7 @@ if __name__ == '__main__': # Testing renderers
     # Iterations
     #----
     # optimizer = tf.keras.optimizers.RMSprop(lr=1e-4)
-    model_tripletloss.compile(loss='mean_squared_error', optimizer='sgd')
+    model_tripletloss.compile(loss='mean_squared_error', optimizer='rmsprop')
 
     opt_inputs = {}
     opt_inputs['query_image'] = D[:,0,:,:,:]
@@ -256,11 +147,14 @@ if __name__ == '__main__': # Testing renderers
 
 
     model_tripletloss.fit( opt_inputs, np.zeros( D.shape[0] ),
-                        epochs=20, batch_size=5, verbose=2 )
+                        epochs=30, batch_size=4, verbose=2 )
     # X = np.random.random( (2,20,20,6) )
     # u = model.predict( X[0:1,:,:,:] )
     # v = model.predict( X[1:2,:,:,:] )
     # w = model.predict( X )
+
+    # model_tripletloss.save( 'model.keras/noveou.keras' )
+    model.save( 'model.keras/core_model.keras')
 
 
 
