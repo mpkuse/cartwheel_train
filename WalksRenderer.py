@@ -39,6 +39,7 @@ class WalksRenderer:
             cap = cv2.VideoCapture( file_name )
 
             if cap.isOpened():
+
                 nFrames = cap.get( cv2.CAP_PROP_FRAME_COUNT )
                 print tcolor.OKBLUE, '+    %03d nFrames=%06d' %(_i, nFrames), file_name, tcolor.ENDC
                 self.captures.append( (cap, nFrames) )

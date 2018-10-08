@@ -29,7 +29,7 @@ from WalksRenderer import WalksRenderer
 from PittsburgRenderer import PittsburgRenderer
 
 
-if __name__ == '__main__': # Testing renderers
+if __name__ == '__1main__': # Testing renderers
     nP = 2
     nN = 2
 
@@ -159,8 +159,8 @@ if __name__ == '__main__': # Testing renderers
 
 
 
-
-if __name__ == '__1main__':
+from CustomNets import MyLayer
+if __name__ == '__main__':
     input_img = keras.layers.Input( shape=(256,) )
 
     out = MyLayer( 15 )( input_img )

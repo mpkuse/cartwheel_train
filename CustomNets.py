@@ -33,10 +33,10 @@ class MyLayer(Layer):
         super(MyLayer, self).build(input_shape)  # Be sure to call this at the end
 
     def call(self, x):
-        return K.dot(x, self.kernel)
+        return [K.dot(x, self.kernel), K.dot(x, self.kernel)]
 
     def compute_output_shape(self, input_shape):
-        return (input_shape[0], self.output_dim)
+        return [(input_shape[0], self.output_dim), (input_shape[0], self.output_dim)]
 
 
 class NetVLADLayer( Layer ):
@@ -68,8 +68,8 @@ class NetVLADLayer( Layer ):
         # soft-assignment.
         s = K.conv2d( x, self.kernel, padding='same' ) + self.bias
         a = K.softmax( s )
-        # self.amap = K.argmax( a, -1 )
-        # print 'amap.shape', self.amap.shape
+        self.amap = K.argmax( a, -1 )
+        print 'amap.shape', self.amap.shape
 
         # Dims used hereafter: batch, H, W, desc_coeff, cluster
         a = K.expand_dims( a, -2 )
@@ -91,34 +91,37 @@ class NetVLADLayer( Layer ):
         v = K.batch_flatten( v )
         v = K.l2_normalize( v, axis=-1 )
 
-        return v
+        return [v, self.amap]
 
     def compute_output_shape( self, input_shape ):
         # return (input_shape[0], self.v.shape[-1].value )
-        return (input_shape[0], self.K*self.D )
+        # return [(input_shape[0], self.K*self.D ), (input_shape[0], self.amap.shape[1].value, self.amap.shape[2].value) ]
+        return [(input_shape[0], self.K*self.D ), (input_shape[0], input_shape[1], input_shape[2]) ]
 
 
 def make_vgg( input_img ):
+    r_l2=keras.regularizers.l2(0.01)
+    r_l1=keras.regularizers.l1(0.01)
 
-    x_64 = keras.layers.Conv2D( 64, (3,3), padding='same', activation='relu' )( input_img )
-    # BN
-    x_64 = keras.layers.Conv2D( 64, (3,3), padding='same', activation='relu' )( x_64 )
-    # BN
+    x_64 = keras.layers.Conv2D( 64, (3,3), padding='same', activation='relu', kernel_regularizer=r_l2, activity_regularizer=r_l1 )( input_img )
+    x_64 = keras.layers.normalization.BatchNormalization()( x_64 )
+    x_64 = keras.layers.Conv2D( 64, (3,3), padding='same', activation='relu', kernel_regularizer=r_l2, activity_regularizer=r_l1 )( x_64 )
+    x_64 = keras.layers.normalization.BatchNormalization()( x_64 )
     x_64 = keras.layers.MaxPooling2D( pool_size=(2,2), padding='same' )( x_64 )
 
 
-    x_128 = keras.layers.Conv2D( 128, (3,3), padding='same', activation='relu' )( x_64 )
-    # BN
-    x_128 = keras.layers.Conv2D( 128, (3,3), padding='same', activation='relu' )( x_128 )
-    # BN
+    x_128 = keras.layers.Conv2D( 128, (3,3), padding='same', activation='relu', kernel_regularizer=r_l2, activity_regularizer=r_l1 )( x_64 )
+    x_128 = keras.layers.normalization.BatchNormalization()( x_128 )
+    x_128 = keras.layers.Conv2D( 128, (3,3), padding='same', activation='relu', kernel_regularizer=r_l2, activity_regularizer=r_l1 )( x_128 )
+    x_128 = keras.layers.normalization.BatchNormalization()( x_128 )
     x_128 = keras.layers.MaxPooling2D( pool_size=(2,2), padding='same' )( x_128 )
 
 
-    x_256 = keras.layers.Conv2D( 256, (3,3), padding='same', activation='relu' )( x_128 )
-    # # BN
-    x_256 = keras.layers.Conv2D( 256, (3,3), padding='same', activation='relu' )( x_256 )
-    # # BN
-    x_256 = keras.layers.MaxPooling2D( pool_size=(2,2), padding='same' )( x_256 )
+    # x_256 = keras.layers.Conv2D( 256, (3,3), padding='same', activation='relu' )( x_128 )
+    # x_256 = keras.layers.normalization.BatchNormalization()( x_256 )
+    # x_256 = keras.layers.Conv2D( 256, (3,3), padding='same', activation='relu' )( x_256 )
+    # x_256 = keras.layers.normalization.BatchNormalization()( x_256 )
+    # x_256 = keras.layers.MaxPooling2D( pool_size=(2,2), padding='same' )( x_256 )
 
     #
     # x_512 = keras.layers.Conv2D( 512, (3,3), padding='same', activation='relu' )( x_256 )

@@ -59,6 +59,8 @@ def demo_walks():
         preloading image frames of the videos.
     """
     WR_BASE = './keezi_walks/'
+    WR_BASE = '/media/mpkuse/Bulk_Data/keezi_walks/'
+
     wr = WalksRenderer( WR_BASE )
     for i in range(20):
         a,b = wr.step(nP=10, nN=10)
@@ -90,7 +92,7 @@ def demo_panda():
     for i in range(20):
         a,b = app.step(16)
 
-demo_pittsburg()
-# demo_walks()
+# demo_pittsburg()
+demo_walks()
 # demo_tokyotm()
 # demo_panda()

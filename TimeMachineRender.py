@@ -216,7 +216,7 @@ class TimeMachineRender:
     ## Given a set for example, L = [(25, 0, 7), (25, 0, 5), (25, 0, 6), (25, 0, 4), (25, 0, 4)]
     ## Load corresponding images. Returns a np.array of size nx240x320x3
     ## If apply_distortions is true, random distortions will be applied. Currently planar rotations with angles as Gaussian distribution centered at 0, sigma=25
-    def _get_images(self, L, apply_distortions=False, return_gray=False, PRINTING=False):
+    def _get_images(self, L, resize=None, apply_distortions=False, return_gray=False, PRINTING=False):
         pyDB = self.pyDB
         A = []
         for loc_idx, yr_idx, im_idx in L:
@@ -232,7 +232,10 @@ class TimeMachineRender:
                 if PRINTING:
                     print 'imread : ', file_name
                 # TODO blur before resizing
-                IM = cv2.resize( cv2.imread( file_name ) , (320,240)  )
+                if resize is None:
+                    IM = cv2.imread( file_name )
+                else:
+                    IM = cv2.resize( cv2.imread( file_name ) , resize  )
                 # IM = cv2.resize( cv2.imread( file_name ) , (160,120)  )
             except:
                 print 'im_indx error', im_list
@@ -270,7 +273,8 @@ class TimeMachineRender:
                 IM = np.expand_dims( IM_gray, axis=2 )
 
 
-            A.append( IM[:,:,::-1] )
+            # A.append( IM[:,:,::-1] )
+            A.append( IM )
 
         return np.array(A)
         #cv2.imshow( 'win', np.concatenate( A, axis=1 )  )
@@ -282,7 +286,7 @@ class TimeMachineRender:
     # Gives out `nP` number of positive samples of query image. `nN` number of negative samples.
     # Note, query image is the 0th image. Next nP will be positive, next nN will be negative.
     # return_gray=True will return a (N,240,320,1), ie gray scale images
-    def step(self, nP, nN, return_gray=False, ENABLE_IMSHOW=False):
+    def step(self, nP, nN, resize=None, apply_distortions=False, return_gray=False, ENABLE_IMSHOW=False):
         # np.random.seed(1)
         # Will generate a total of 1+nP+nN number of images. 1st is the query image (choosen randomly)
         # Next nP will be positive Samples. Next nN will be negative samples
@@ -297,9 +301,9 @@ class TimeMachineRender:
         # print 'd : ', diffs
 
         PRINTING = False
-        q_im = self._get_images( [(loc_idx, yr_idx, im_idx)], return_gray=return_gray , PRINTING=PRINTING )
-        sims_im = self._get_images(sims[0:nP], apply_distortions=True, return_gray=return_gray, PRINTING=PRINTING)
-        diffs_im = self._get_images(diffs, return_gray=return_gray, PRINTING=PRINTING)
+        q_im = self._get_images( [(loc_idx, yr_idx, im_idx)], resize=resize, apply_distortions=apply_distortions, return_gray=return_gray , PRINTING=PRINTING )
+        sims_im = self._get_images(sims[0:nP], resize=resize, apply_distortions=apply_distortions, return_gray=return_gray, PRINTING=PRINTING)
+        diffs_im = self._get_images(diffs, resize=resize, apply_distortions=apply_distortions, return_gray=return_gray, PRINTING=PRINTING)
 
 
         # print q_im.shape
