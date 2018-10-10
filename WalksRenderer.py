@@ -20,10 +20,72 @@ import cv2
 import code
 import math
 import glob
+import pickle
 
 #
 import TerminalColors
 tcolor = TerminalColors.bcolors()
+
+
+class WalksRendererOnline:
+    def __init__( self, db_path ):
+        self.db_path = db_path
+        print tcolor.OKGREEN, 'WalksRenderer.db_path : ', db_path, tcolor.ENDC
+
+        print tcolor.OKBLUE, 'Video Files : ', tcolor.ENDC
+        self.all_files = []
+        for _i, file_name in enumerate( glob.glob( db_path+"/*.mkv" ) +  glob.glob( db_path+"/*.mp4" )):
+            print file_name
+            self.all_files.append( file_name )
+
+    def proc_vfile( self, vfilename ):
+        # vfilename = 'Amsterdam.mkv'
+        # vfilename = self.all_files[5]
+        print 'vfilename = ', vfilename
+        txt = np.loadtxt( vfilename+'.txt', delimiter=',', dtype='int32' )
+        cap = cv2.VideoCapture( vfilename )
+        assert( cap.isOpened() )
+        nFrames = cap.get( cv2.CAP_PROP_FRAME_COUNT )
+
+        L = [ [txt[0]] ]
+        for i in range( txt.shape[0]-1 ):
+            if abs(txt[i+1,0] - txt[i,0]) < 500:
+                L[-1].append( txt[i+1] )
+            else:
+                L.append( [txt[i+1] ] )
+
+        # code.interact( local=locals() )
+
+        print 'nSegments = ', len(L)
+        for l in L:
+            l = np.array( l )
+            # print l
+            print 'len_of_this_seg=', len(l)
+
+
+            cap.set( cv2.CAP_PROP_POS_FRAMES, l[0,0] )
+            ret, frame0 = cap.read()
+            IM0 = cv2.resize( cv2.blur(frame0, (5,5)), (320,240) )#, fx=0.2, fy=0.2 )
+
+
+            cap.set( cv2.CAP_PROP_POS_FRAMES, l[0,1] )
+            ret, frame1 = cap.read()
+            IM1 = cv2.resize( cv2.blur(frame1, (5,5)), (320,240) )#, fx=0.2, fy=0.2 )
+
+
+            cv2.imshow( 'frame0', IM0 )
+            cv2.imshow( 'frame1', IM1 )
+            cv2.waitKey(0)
+
+
+
+
+    def proc(self):
+        c = self.proc_vfile( self.all_files[-4] )
+
+
+
+
 
 
 class WalksRenderer:
@@ -122,6 +184,7 @@ class WalksRenderer:
 
         _sims = self._similar_to( nP, _q[0][0], _q[0][1] )
         _different = self._query( nN )
+
 
 
         startLoad = time.time()

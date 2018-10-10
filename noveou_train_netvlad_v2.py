@@ -16,7 +16,9 @@ import numpy as np
 import cv2
 
 # Keras CUstom Implementation
-from CustomNets import NetVLADLayer, make_vgg
+from CustomNets import NetVLADLayer
+from CustomNets import make_vgg, make_upsampling_vgg, make_from_vgg19
+from CustomNets import do_augmentation
 
 
 
@@ -92,27 +94,44 @@ if __name__ == '__main__':
     #------------------------------------------------------------------------
     # PTS_BASE = '/Bulk_Data/data_Akihiko_Torii/Pitssburg/'
     # pr = PittsburgRenderer( PTS_BASE )
+    #TODO : Either a) set keras's data augmentation b) or use imgaug. Get rid of custom data augmentation.
 
-    TTM_BASE = '/Bulk_Data/data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
-    pr = TimeMachineRender( TTM_BASE )
     D = []
-    for s in range(50):
-        print 'get a sample #', s
-        a,_ = pr.step(nP=nP, nN=nN, return_gray=False, resize=(240,320), apply_distortions=False, ENABLE_IMSHOW=False)
-        print a.shape
-        D.append( a )
-        # for i in range( a.shape[0] ):
-        #     print i
-        #     cv2.imshow( 'win', a[i,:,:,:].astype('uint8'))
-        #     cv2.waitKey(0)
+    if True:
+        TTM_BASE = '/Bulk_Data/data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
+        pr = TimeMachineRender( TTM_BASE )
+        for s in range(800):
+            print 'get a sample #', s
+            a,_ = pr.step(nP=nP, nN=nN, return_gray=False, resize=(320,240), apply_distortions=False, ENABLE_IMSHOW=False)
+            print a.shape
+            D.append( a )
+
+    if True:
+        PTS_BASE = '/Bulk_Data/data_Akihiko_Torii/Pitssburg/'
+        pr = PittsburgRenderer( PTS_BASE )
+        for s in range(800):
+            print 'get a sample #', s
+            a,_ = pr.step(nP=nP, nN=nN, return_gray=False, resize=(240,320), apply_distortions=False, ENABLE_IMSHOW=False)
+            print a.shape
+            D.append( a )
 
     D = np.array( D )    #50 x (1+nP+nN) x 640 x 480 x 3
     # qu = D[:,0:1,:,:,:]  #50 x 1        x 640 x 480 x 3
     # pu = D[:,1:nP+1,:,:,:] #50 x nP       x 640 x 480 x 3
     # nu = D[:,1+nP:1+nP+nN:,:,:,:]  #50 x nN       x 640 x 480 x 3
+
+
+    #------------------------------------------------------------------------------
+    # Augment Data
+    #------------------------------------------------------------------------------
+
+    D = do_augmentation( D )
+
     image_nrows = D.shape[2] #480
     image_ncols = D.shape[3] #640
     image_nchnl = D.shape[4] #3
+    print 'D.shape: ', D.shape
+
 
 
     #---------------------------------------------------------------------------
@@ -120,7 +139,15 @@ if __name__ == '__main__':
     #---------------------------------------------------------------------------
     input_img = keras.layers.Input( shape=(image_nrows, image_ncols, image_nchnl ) )
     # cnn = input_img
-    cnn = make_vgg( input_img )
+    # cnn = make_upsampling_vgg( input_img )
+    cnn = make_from_vgg19( input_img, trainable=False )
+
+
+    # base_model = keras.applications.vgg19.VGG19(weights='imagenet')
+    # base_model.summary()
+    # keras.utils.plot_model( base_model, to_file='core.png', show_shapes=True )
+    # quit()
+
 
     out, out_amap = NetVLADLayer(num_clusters = 16)( cnn )
     # code.interact( local=locals() )
@@ -129,7 +156,7 @@ if __name__ == '__main__':
     model.summary()
     keras.utils.plot_model( model, to_file='core.png', show_shapes=True )
 
-
+    # quit()
 
 
     #--------------------------------------------------------------------------
@@ -153,14 +180,14 @@ if __name__ == '__main__':
     rmsprop = keras.optimizers.RMSprop(lr=0.001, rho=0.9, epsilon=None, decay=0.01, clipnorm=1.0)
     t_model.compile( loss=custom_loss, optimizer=rmsprop, metrics=[custom_loss] )
 
-    # TODO: callbacks : Tensorboard, lr, multigpu
-    # TODO: Validation split and custom validation function
+    # callbacks : Tensorboard, lr, multigpu
+    # Validation split and custom validation function
     import tensorflow as tf
-    tb = tf.keras.callbacks.TensorBoard( log_dir='tensorboard.logs/noveou' )
-    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, min_lr=0.001)
+    tb = tf.keras.callbacks.TensorBoard( log_dir='tensorboard.logs/noveou_vgg19pretained_fixedvgglayers' )
+    reduce_lr = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', factor=0.2, patience=5, min_lr=0.00001)
 
     t_model.fit( x=D, y=np.zeros(D.shape[0]),
-                epochs=5, batch_size=3, verbose=1, validation_split=0.1,
+                epochs=40, batch_size=4, verbose=1, validation_split=0.1,
                 callbacks=[tb] )
 
-    model.save( 'model.keras/core_model_tokyotm.keras')
+    model.save( 'model.keras/core_model_vgg19pretained_fixedvgglayers.keras' )

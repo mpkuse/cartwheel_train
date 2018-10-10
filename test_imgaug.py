@@ -1,23 +1,41 @@
-"""
-    Contains my Implementation of NetVLAD and other CNN netsworks using
-    keras2.0 with tensorflow1.11.
+# Testing python package imgaug
+# https://github.com/aleju/imgaug
 
-        Author  : Manohar Kuse <mpkuse@connect.ust.hk>
-        Created : 7th Oct, 2018
-"""
-
-
-from keras import backend as K
-from keras.engine.topology import Layer
-import keras
-import code
 import numpy as np
-
 import cv2
+
+from PittsburgRenderer import PittsburgRenderer
+from TimeMachineRender import TimeMachineRender
 
 from imgaug import augmenters as iaa
 import imgaug as ia
 
+import code
+
+def show_images( IM, msg=None ):
+    """ Nx240x320x3 """
+    assert( len(IM.shape) == 4 )
+
+    if msg is not None:
+        print msg
+
+    for i in range( IM.shape[0] ):
+        cv2.imshow( 'im', IM[i,:,:,:].astype('uint8') )
+        key = cv2.waitKey(0)
+        if key == ord('q'):
+            break
+
+def show_image_pair( IM, IM1, msg=None ):
+    assert( len(IM.shape)  == 4 )
+    assert( len(IM1.shape) == 4 )
+    assert( IM.shape[0] == IM1.shape[0] )
+
+    for i in range( IM.shape[0] ):
+        cv2.imshow( 'im', IM[i,:,:,:].astype('uint8') )
+        cv2.imshow( 'im1', IM1[i,:,:,:].astype('uint8') )
+        key = cv2.waitKey(0)
+        if key == ord('q'):
+            break
 
 def do_augmentation( D ):
     """ D : Nx(n+p+1)xHxWx3. Return N1x(n+p+1)xHxWx3 """
@@ -186,160 +204,31 @@ def do_augmentation( D ):
     return L
 
 
+#------------------------------------------------------------------------------
+# Load Data
+#------------------------------------------------------------------------------
+D = []
 
-# Writing your own custom layers
-class MyLayer(Layer):
-
-    def __init__(self, output_dim, **kwargs):
-        self.output_dim = output_dim
-        super(MyLayer, self).__init__(**kwargs)
-
-    def build(self, input_shape):
-        # Create a trainable weight variable for this layer.
-        self.kernel = self.add_weight(name='kernel',
-                                      shape=(input_shape[1], self.output_dim),
-                                      initializer='uniform',
-                                      trainable=True)
-        super(MyLayer, self).build(input_shape)  # Be sure to call this at the end
-
-    def call(self, x):
-        return [K.dot(x, self.kernel), K.dot(x, self.kernel)]
-
-    def compute_output_shape(self, input_shape):
-        return [(input_shape[0], self.output_dim), (input_shape[0], self.output_dim)]
+TTM_BASE = '/Bulk_Data/data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
+pr = TimeMachineRender( TTM_BASE )
+for s in range(5):
+    print 'get a sample #', s
+    a,_ = pr.step(nP=5, nN=5, return_gray=False, resize=(320,240), apply_distortions=False, ENABLE_IMSHOW=False)
+    print a.shape
+    D.append( a )
+D = np.array( D )
 
 
-class NetVLADLayer( Layer ):
 
-    def __init__( self, num_clusters, **kwargs ):
-        self.num_clusters = num_clusters
-        super(NetVLADLayer, self).__init__(**kwargs)
+#------------------------------------------------------------------------------
+# Augment Data
+#------------------------------------------------------------------------------
+G = do_augmentation( D )
+show_images( G[0] )
+show_images( G[6] )
 
-    def build( self, input_shape ):
-        self.K = self.num_clusters
-        self.D = input_shape[-1]
-
-        self.kernel = self.add_weight( name='kernel',
-                                    shape=(1,1,self.D,self.K),
-                                    initializer='uniform',
-                                    trainable=True )
-
-        self.bias = self.add_weight( name='bias',
-                                    shape=(1,1,self.K),
-                                    initializer='uniform',
-                                    trainable=True )
-
-        self.C = self.add_weight( name='cluster_centers',
-                                shape=[1,1,1,self.D,self.K],
-                                initializer='uniform',
-                                trainable=True)
-
-    def call( self, x ):
-        # soft-assignment.
-        s = K.conv2d( x, self.kernel, padding='same' ) + self.bias
-        a = K.softmax( s )
-        self.amap = K.argmax( a, -1 )
-        print 'amap.shape', self.amap.shape
-
-        # Dims used hereafter: batch, H, W, desc_coeff, cluster
-        a = K.expand_dims( a, -2 )
-        # print 'a.shape=',a.shape
-
-        # Core
-        v = K.expand_dims(x, -1) + self.C
-        # print 'v.shape', v.shape
-        v = a * v
-        # print 'v.shape', v.shape
-        v = K.sum(v, axis=[1, 2])
-        # print 'v.shape', v.shape
-        v = K.permute_dimensions(v, pattern=[0, 2, 1])
-        # print 'v.shape', v.shape
-        #v.shape = None x K x D
-
-        # Normalize v (Intra Normalization)
-        v = K.l2_normalize( v, axis=-1 )
-        v = K.batch_flatten( v )
-        v = K.l2_normalize( v, axis=-1 )
-
-        return [v, self.amap]
-
-    def compute_output_shape( self, input_shape ):
-        # return (input_shape[0], self.v.shape[-1].value )
-        # return [(input_shape[0], self.K*self.D ), (input_shape[0], self.amap.shape[1].value, self.amap.shape[2].value) ]
-        return [(input_shape[0], self.K*self.D ), (input_shape[0], input_shape[1], input_shape[2]) ]
-
-
-def make_vgg( input_img ):
-    r_l2=keras.regularizers.l2(0.01)
-    r_l1=keras.regularizers.l1(0.01)
-
-    x_64 = keras.layers.Conv2D( 64, (3,3), padding='same', activation='relu', kernel_regularizer=r_l2, activity_regularizer=r_l1 )( input_img )
-    x_64 = keras.layers.normalization.BatchNormalization()( x_64 )
-    x_64 = keras.layers.Conv2D( 64, (3,3), padding='same', activation='relu', kernel_regularizer=r_l2, activity_regularizer=r_l1 )( x_64 )
-    x_64 = keras.layers.normalization.BatchNormalization()( x_64 )
-    x_64 = keras.layers.MaxPooling2D( pool_size=(2,2), padding='same' )( x_64 )
-
-
-    x_128 = keras.layers.Conv2D( 128, (3,3), padding='same', activation='relu', kernel_regularizer=r_l2, activity_regularizer=r_l1 )( x_64 )
-    x_128 = keras.layers.normalization.BatchNormalization()( x_128 )
-    x_128 = keras.layers.Conv2D( 128, (3,3), padding='same', activation='relu', kernel_regularizer=r_l2, activity_regularizer=r_l1 )( x_128 )
-    x_128 = keras.layers.normalization.BatchNormalization()( x_128 )
-    x_128 = keras.layers.MaxPooling2D( pool_size=(2,2), padding='same' )( x_128 )
-
-
-    # x_256 = keras.layers.Conv2D( 256, (3,3), padding='same', activation='relu' )( x_128 )
-    # x_256 = keras.layers.normalization.BatchNormalization()( x_256 )
-    # x_256 = keras.layers.Conv2D( 256, (3,3), padding='same', activation='relu' )( x_256 )
-    # x_256 = keras.layers.normalization.BatchNormalization()( x_256 )
-    # x_256 = keras.layers.MaxPooling2D( pool_size=(2,2), padding='same' )( x_256 )
-
-    #
-    # x_512 = keras.layers.Conv2D( 512, (3,3), padding='same', activation='relu' )( x_256 )
-    # # BN
-    # x_512 = keras.layers.Conv2D( 512, (3,3), padding='same', activation='relu' )( x_512 )
-    # # BN
-    # x_512 = keras.layers.MaxPooling2D( pool_size=(2,2), padding='same' )( x_512 )
-
-
-    x = keras.layers.Conv2DTranspose( 32, (5,5), strides=4, padding='same' )( x_128 )
-    # x = x_128
-
-    return x
-
-
-def make_upsampling_vgg( input_img  ):
-    r_l2=keras.regularizers.l2(0.01)
-    r_l1=keras.regularizers.l1(0.01)
-
-    x_64 = keras.layers.Conv2D( 64, (3,3), padding='same', activation='relu', kernel_regularizer=r_l2, activity_regularizer=r_l1 )( input_img )
-    x_64 = keras.layers.normalization.BatchNormalization()( x_64 )
-    x_64 = keras.layers.Conv2D( 64, (3,3), strides=2, padding='same', activation='relu', kernel_regularizer=r_l2, activity_regularizer=r_l1 )( x_64 )
-    x_64 = keras.layers.normalization.BatchNormalization()( x_64 )
-
-    x_128 = keras.layers.Conv2D( 128, (3,3), padding='same', activation='relu', kernel_regularizer=r_l2, activity_regularizer=r_l1 )( x_64 )
-    x_128 = keras.layers.normalization.BatchNormalization()( x_128 )
-    x_128 = keras.layers.Conv2D( 128, (3,3), strides=2, padding='same', activation='relu', kernel_regularizer=r_l2, activity_regularizer=r_l1 )( x_128 )
-    x_128 = keras.layers.normalization.BatchNormalization()( x_128 )
-
-    x_256 = keras.layers.Conv2D( 128, (3,3), padding='same', activation='relu', kernel_regularizer=r_l2, activity_regularizer=r_l1 )( x_128 )
-    x_256 = keras.layers.normalization.BatchNormalization()( x_256 )
-    x_256 = keras.layers.Conv2D( 128, (3,3), strides=2, padding='same', activation='relu', kernel_regularizer=r_l2, activity_regularizer=r_l1 )( x_256 )
-    x_256 = keras.layers.normalization.BatchNormalization()( x_256 )
-
-    z = keras.layers.Conv2DTranspose( 32, (11,11), strides=8, padding='same' )( x_256 )
-    x = keras.layers.Conv2DTranspose( 32, (9,9), strides=4, padding='same' )( x_128 )
-    y = keras.layers.Conv2DTranspose( 32, (7,7), strides=2, padding='same' )( x_64 )
-
-    out = keras.layers.Add()( [x,y,z] )
-    return out
-
-def make_from_vgg19( input_img, trainable=True ):
-    base_model = keras.applications.vgg19.VGG19(weights='imagenet', include_top=False, input_tensor=input_img)
-
-    for l in base_model.layers:
-        l.trainable = trainable
-
-    base_model_out = base_model.get_layer('block2_pool').output
-
-    z = keras.layers.Conv2DTranspose( 32, (9,9), strides=4, padding='same' )( base_model_out )
-    return z
+# images_aug = seq.augment_images(E)
+# images_aug2 = seq.augment_images(E)
+# show_images( E, "E" )
+# show_images( images_aug, "images_aug" )
+show_image_pair( L[0], L[1] )

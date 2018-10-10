@@ -28,6 +28,7 @@ import code
 from TimeMachineRender import TimeMachineRender
 from PandaRender import NetVLADRenderer
 from WalksRenderer import WalksRenderer
+from WalksRenderer import WalksRendererOnline
 from PittsburgRenderer import PittsburgRenderer
 
 def demo_pittsburg():
@@ -93,6 +94,11 @@ def demo_panda():
         a,b = app.step(16)
 
 # demo_pittsburg()
-demo_walks()
+# demo_walks()
 # demo_tokyotm()
 # demo_panda()
+
+
+WALKS_PATH = '/media/mpkuse/Bulk_Data/keezi_walks/'
+tm = WalksRendererOnline( WALKS_PATH )
+tm.proc()
