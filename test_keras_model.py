@@ -14,7 +14,7 @@ import cv2
 
 # Keras CUstom Implementation
 from CustomNets import NetVLADLayer
-from CustomNets import make_vgg, make_upsampling_vgg
+from CustomNets import make_vgg, make_upsampling_vgg, make_from_vgg19
 
 
 
@@ -39,7 +39,7 @@ if __name__ == '__m1ain__':
         print b.shape
         cv2.waitKey(0)
 
-if __name__ == '__mai1n__': # Use __seq__
+if __name__ == '__main__': # Use __seq__
 
 
     ##
@@ -63,12 +63,15 @@ if __name__ == '__mai1n__': # Use __seq__
     image_rows = S_full_res.shape[1]
     image_cols = S_full_res.shape[2]
     input_img = keras.layers.Input( shape=(image_rows, image_cols, 3 ) )
-    cnn = make_upsampling_vgg( input_img )
+    # cnn = make_upsampling_vgg( input_img )
+    cnn = make_from_vgg19( input_img, trainable=False )
     out = NetVLADLayer(num_clusters = 16)( cnn )
     model = keras.models.Model( inputs=input_img, outputs=out )
     model.summary()
-    model.load_weights( 'model.keras/core_model.keras' )
 
+    # model.load_weights( 'model.keras/core_model_dataaug.keras' )
+    # model.load_weights( 'model.keras/core_model_vgg19pretained.keras' )
+    model.load_weights( 'model.keras/core_model_vgg19pretained_fixedvgglayers.keras' )
 
     # Predict for all images
     L = []
@@ -94,7 +97,7 @@ if __name__ == '__mai1n__': # Use __seq__
     np.savetxt( outfilename, L)
 
 
-if __name__ == '__main__':
+if __name__ == '__1main__':
     nP = 3
     nN = 1
 
@@ -114,16 +117,19 @@ if __name__ == '__main__':
     # input_img = keras.layers.Input( shape=(240, 320, 3 ) )
     # cnn = input_img
     # cnn = make_vgg( input_img )
-    cnn = make_upsampling_vgg( input_img )
+    # cnn = make_upsampling_vgg( input_img )
+    cnn = make_from_vgg19( input_img, trainable=False )
+
 
     out = NetVLADLayer(num_clusters = 16)( cnn )
     # code.interact( local=locals() )
     model = keras.models.Model( inputs=input_img, outputs=out )
     model.summary()
 
-    # model.load_weights( 'model.keras/core_model_tryh.keras' )
-    # model.load_weights( 'model.keras/core_model_tryh.keras' )
-    model.load_weights( 'model.keras/core_model_dataaug.keras' )
+
+    # model.load_weights( 'model.keras/core_model_dataaug.keras' )
+    model.load_weights( 'model.keras/core_model_vgg19pretained.keras' )
+    # model.load_weights( 'model.keras/core_model_vgg19pretained_fixedvgglayers.keras' )
 
     # quit()
     start_t = time.time()

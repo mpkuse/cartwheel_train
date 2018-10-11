@@ -343,3 +343,20 @@ def make_from_vgg19( input_img, trainable=True ):
 
     z = keras.layers.Conv2DTranspose( 32, (9,9), strides=4, padding='same' )( base_model_out )
     return z
+
+def make_from_vgg19_multiconvup( input_img, trainable=True ):
+    base_model = keras.applications.vgg19.VGG19(weights='imagenet', include_top=False, input_tensor=input_img)
+
+    for l in base_model.layers:
+        l.trainable = trainable
+
+    base_model_out = base_model.get_layer('block2_pool').output
+
+    up_conv_out = keras.layers.Conv2DTranspose( 32, (9,9), strides=2, padding='same', activation='relu' )( base_model_out )
+    up_conv_out = keras.layers.normalization.BatchNormalization()( up_conv_out )
+
+    up_conv_out = keras.layers.Conv2DTranspose( 32, (9,9), strides=2, padding='same', activation='relu' )( up_conv_out )
+    up_conv_out = keras.layers.normalization.BatchNormalization()( up_conv_out )
+
+
+    return up_conv_out
