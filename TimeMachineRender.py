@@ -299,7 +299,7 @@ class TimeMachineRender:
         # print 'q : ', loc_idx, yr_idx, im_idx
         # print 's : ', sims
         # print 'd : ', diffs
-
+        
         PRINTING = False
         q_im = self._get_images( [(loc_idx, yr_idx, im_idx)], resize=resize, apply_distortions=apply_distortions, return_gray=return_gray , PRINTING=PRINTING )
         sims_im = self._get_images(sims[0:nP], resize=resize, apply_distortions=apply_distortions, return_gray=return_gray, PRINTING=PRINTING)

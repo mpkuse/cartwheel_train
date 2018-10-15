@@ -9,7 +9,17 @@ class InteractiveLogger:
 
         print '[InteractiveLogger] LOG_DIR = ', LOG_DIR
         print '[InteractiveLogger] mkdir -p ', LOG_DIR
-        os.makedirs( LOG_DIR )
+
+        try:
+            os.makedirs( LOG_DIR )
+        except:
+
+            res = raw_input( 'Directory Already Exists. Overwrite? (y/n)' )
+            if res == 'y':
+                return
+            else:
+                print 'quit'
+                quit()
 
     def add_linetext( self, line ):
         self.string_data.append( line )
@@ -27,7 +37,7 @@ class InteractiveLogger:
         result = editor.edit(contents=init_content )
 
         print '[InteractiveLogger] Write file : ', self.LOG_DIR+"/README.md"
-        text_file = open(self.LOG_DIR+"/README.md", "w")
+        text_file = open(self.LOG_DIR+"/README.md", "a")
         text_file.write(result)
         text_file.close()
 
