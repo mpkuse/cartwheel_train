@@ -408,11 +408,14 @@ def make_from_vgg19_multiconvup( input_img, trainable=True ):
 
 
 def make_from_mobilenet( input_img ):
+    # input_img = keras.layers.BatchNormalization()(input_img)
+
     base_model = keras.applications.mobilenet.MobileNet( weights='imagenet', include_top=False, input_tensor=input_img )
+    # base_model = keras.applications.mobilenet.MobileNet( weights=None, include_top=False, input_tensor=input_img )
     # keras.utils.plot_model( base_model, to_file='base_model.png', show_shapes=True )
 
     # Pull out a layer from original network
-    base_model_out = base_model.get_layer( 'conv_pw_13_relu').output # can also try conv_pw_7_relu etc.
+    base_model_out = base_model.get_layer( 'conv_pw_7_relu').output # can also try conv_pw_7_relu etc.
 
     # Up-sample
     # Basic idea is to try upsampling without using the transposed-conv layers. Instead use either of

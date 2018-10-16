@@ -14,8 +14,8 @@ import cv2
 
 # Keras CUstom Implementation
 from CustomNets import NetVLADLayer
-from CustomNets import make_vgg, make_upsampling_vgg, make_from_vgg19, make_from_vgg19_multiconvup
-
+# from CustomNets import make_vgg, make_upsampling_vgg, make_from_vgg19, make_from_vgg19_multiconvup
+from CustomNets import make_from_mobilenet
 
 
 
@@ -40,12 +40,21 @@ if __name__ == '__1main__':
     # Set network
     #---
     input_img = keras.layers.Input( shape=(480, 640, 3 ) )
-    cnn = make_from_vgg19_multiconvup( input_img, trainable=True )
-    out = NetVLADLayer(num_clusters = 16)( cnn )
-    model = keras.models.Model( inputs=input_img, outputs=out )
+
+
+    cnn = make_from_mobilenet( input_img )
+    out, out_amap = NetVLADLayer(num_clusters = 16)( cnn )
+
+
+    # cnn = make_from_vgg19_multiconvup( input_img, trainable=True )
+    # out = NetVLADLayer(num_clusters = 16)( cnn )
+    model = keras.models.Model( inputs=input_img, outputs=[out, out_amap] )
     model.summary()
+
+
     # model.load_weights( 'models.keras/model_with_dataaug_batchnorm/core_model_vgg19pretained_fixedvgglayers.keras' )
-    model.load_weights( 'models.keras/model_learn_with_regul_multi_samplefit/core_model.keras' )
+    # model.load_weights( 'models.keras/model_learn_with_regul_multi_samplefit/core_model.keras' )
+    model.load_weights( 'models.keras/mobilenet_test_conv13/core_model.keras' )
 
 
 
@@ -56,13 +65,13 @@ if __name__ == '__1main__':
     seq = iaa.Sequential([
         sometimes( iaa.Crop(px=(0, 50)) ), # crop images from each side by 0 to 16px (randomly chosen)
         # iaa.Fliplr(0.5), # horizontally flip 50% of the images
-        iaa.GaussianBlur(sigma=(0, 3.0)), # blur images with a sigma of 0 to 3.0
-        sometimes( iaa.Affine(
-            scale={"x": (0.8, 1.2), "y": (0.8, 1.2)},
-            translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)},
-            rotate=(-25, 25),
-            shear=(-8, 8)
-            ) )
+        iaa.GaussianBlur(sigma=(0, 3.0)) # blur images with a sigma of 0 to 3.0
+        # sometimes( iaa.Affine(
+        #     scale={"x": (0.8, 1.2), "y": (0.8, 1.2)},
+        #     translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)},
+        #     rotate=(-25, 25),
+        #     shear=(-8, 8)
+        #     ) )
     ])
 
     # WR_BASE = '/Bulk_Data/data_Akihiko_Torii/Pitssburg/'
@@ -128,17 +137,15 @@ if __name__ == '__main__': # Use __seq__
     input_img = keras.layers.Input( shape=(image_rows, image_cols, 3 ) )
     # cnn = make_upsampling_vgg( input_img )
     # cnn = make_from_vgg19( input_img, trainable=False )
-    cnn = make_from_vgg19_multiconvup( input_img, trainable=True )
+    # cnn = make_from_vgg19_multiconvup( input_img, trainable=True )
+    cnn = make_from_mobilenet( input_img )
 
-    out = NetVLADLayer(num_clusters = 16)( cnn )
-    model = keras.models.Model( inputs=input_img, outputs=out )
+    out, out_amap = NetVLADLayer(num_clusters = 16)( cnn )
+    model = keras.models.Model( inputs=input_img, outputs=[out,out_amap]  )
     model.summary()
 
-    # model.load_weights( 'model.keras/core_model_dataaug.keras' )
-    # model.load_weights( 'model.keras/core_model_vgg19pretained.keras' )
-    # model.load_weights( 'model.keras/core_model_vgg19pretained_fixedvgglayers.keras' )
-    # model.load_weights( 'models.keras/model_with_dataaug_batchnorm/core_model_vgg19pretained_fixedvgglayers.keras' )
-    model.load_weights( 'models.keras/model_learn_with_regul_multi_samplefit/core_model.12.keras' )
+    model.load_weights( 'models.keras/mobilenet_test_conv7/core_model.keras' )
+
 
 
     # Predict for all images
@@ -165,6 +172,8 @@ if __name__ == '__main__': # Use __seq__
     np.savetxt( outfilename, L)
 
 
+
+# Not in use. TODO: Removal
 if __name__ == '__1main__': # Use pits burg or timemachine
     nP = 3
     nN = 3

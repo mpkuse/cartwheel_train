@@ -34,15 +34,16 @@ from WalksRenderer import WalksRenderer
 from PittsburgRenderer import PittsburgRenderer
 
 class WSequence(keras.utils.Sequence):
-    def __init__(self, nP, nN ):
+    def __init__(self, nP, nN, n_samples=500 ):
         # self.x, self.y = x_set, y_set
-        self.D = dataload_( n_tokyoTimeMachine=500, n_Pitssburg=-1, nP=nP, nN=nN )
+        self.D = dataload_( n_tokyoTimeMachine=n_samples, n_Pitssburg=-1, nP=nP, nN=nN )
         print 'dataload_ returned len(self.D)=', len(self.D), 'self.D[0].shape=', self.D[0].shape
         self.y = np.zeros( len(self.D) )
 
         self.epoch = 0
         self.batch_size = 4
-        self.refresh_data_after_n_epochs = 30
+        self.refresh_data_after_n_epochs = 20
+        self.n_samples = n_samples
 
     def __len__(self):
         return int(np.ceil(len(self.D) / float(self.batch_size)))
@@ -53,22 +54,52 @@ class WSequence(keras.utils.Sequence):
 
         return np.array( batch_x ), np.array( batch_y )
 
-        return np.array([
-            resize(imread(file_name), (200, 200))
-               for file_name in batch_x]), np.array(batch_y)
+       #TODO: Can return another number (sample_weight) for the sample. Which can be judge say by GMS matcher. If we see higher matches amongst +ve set ==> we have good positive samples,
+
 
     def on_epoch_end(self):
         N = self.refresh_data_after_n_epochs
         if self.epoch % N == 0 and self.epoch > 0 :
             print '[on_epoch_end] done %d epochs, so load new data' %(N)
-            self.D = dataload_( n_tokyoTimeMachine=25, n_Pitssburg=-1, nP=nP, nN=nN )
+            self.D = dataload_( n_tokyoTimeMachine=self.n_samples, n_Pitssburg=-1, nP=nP, nN=nN )
             print 'dataload_ returned len(self.D)=', len(self.D), 'self.D[0].shape=', self.D[0].shape
             self.y = np.zeros( len(self.D) )
             # modify data
         self.epoch += 1
 
+        #TODO: start data augmentation after say 50 epochs. Don't do too heavy augmentation.
 
-#TODO - Triplet loss
+
+
+
+def triplet_loss( y_true, y_pred ):
+# def triplet_loss( params ):
+    # y_true, y_pred = params
+    """ Closed negative sample - farthest positive sample """
+    assert( y_pred.shape[1] == 1+nP+nN )
+
+    # y_pred.shape = shape=(?, 5, 512)
+    q = y_pred[:,0:1,:]    # shape=(?, 1, 512)
+    P = y_pred[:,1:1+nP,:] # shape=(?, nP, 512)
+    N = y_pred[:,1+nP:,:]  # shape=(?, nN, 512)
+
+    q_dot_P = keras.layers.dot( [q,P], axes=-1 )  # shape=(?, 1, nP)
+    q_dot_N = keras.layers.dot( [q,N], axes=-1 )  # shape=(?, 1, nN)
+
+    epsilon = 0.3  # Your epsilon here
+    d_nearest_negative_sample =  K.max( q_dot_N, axis=-1 )
+    d_farthest_positive_sample = K.min( q_dot_P, axis=-1 )
+
+    # case-A: d_nearest_negative_sample > d_farthest_positive_sample
+    # Penalize this
+
+    # case-B: d_nearest_negative_sample < d_farthest_positive_sample
+    # This is desired, so this should have zero loss
+
+    return K.maximum( 0., d_nearest_negative_sample - d_farthest_positive_sample + epsilon )
+
+
+
 
 # def allpair_hinge_loss( params ):
     # y_true, y_pred = params
@@ -86,7 +117,7 @@ def allpair_hinge_loss(y_true, y_pred):
     q_dot_P = keras.layers.dot( [q,P], axes=-1 )  # shape=(?, 1, 2)
     q_dot_N = keras.layers.dot( [q,N], axes=-1 )  # shape=(?, 1, 2)
 
-    epsilon = 0.0  # Your epsilon here
+    epsilon = 0.3  # Your epsilon here
 
     zeros = K.zeros((nP, nN), dtype='float32')
     ones_m = K.ones((nP,1), dtype='float32')
@@ -117,7 +148,7 @@ def allpair_count_goodfit(y_true, y_pred):
     q_dot_P = keras.layers.dot( [q,P], axes=-1 )  # shape=(?, 1, 2)
     q_dot_N = keras.layers.dot( [q,N], axes=-1 )  # shape=(?, 1, 2)
 
-    epsilon = 0.0  # Your epsilon here
+    epsilon = 0.3  # Your epsilon here
 
     zeros = K.zeros((nP, nN), dtype='float32')
     ones_m = K.ones((nP,1), dtype='float32')
@@ -136,12 +167,15 @@ def allpair_count_goodfit(y_true, y_pred):
 # Verify loss function
 if __name__ == '__1main__':
     np.random.seed(0)
+    nP = 3
+    nN = 2
     y_true = keras.layers.Input( shape=(6,7) )
     y_pred = keras.layers.Input( shape=(6,7) )
 
-    u = keras.layers.Lambda( allpair_hinge_loss )( [y_true, y_pred] )
-    v = keras.layers.Lambda( allpair_count_goodfit )( [y_true, y_pred] )
-    model = keras.models.Model( inputs=[y_true,y_pred], outputs=[u,v] )
+    # u = keras.layers.Lambda( allpair_hinge_loss )( [y_true, y_pred] )
+    # v = keras.layers.Lambda( allpair_count_goodfit )( [y_true, y_pred] )
+    w = keras.layers.Lambda( triplet_loss )( [y_true, y_pred] )
+    model = keras.models.Model( inputs=[y_true,y_pred], outputs=w )
 
     model.summary()
     keras.utils.plot_model( model, show_shapes=True )
@@ -180,14 +214,16 @@ if __name__ == '__1main__':
     quit()
 
 
+
+
 # Training
 if __name__ == '__main__':
     image_nrows = 240
     image_ncols = 320
     image_nchnl = 3
-    int_logr = InteractiveLogger( './models.keras/mobilenet_test_conv13/' )
-    nP = 8
-    nN = 8
+    int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_tripletloss/' )
+    nP = 6
+    nN = 6
 
     #--------------------------------------------------------------------------
     # Core Model Setup
@@ -202,6 +238,8 @@ if __name__ == '__main__':
     model.summary()
     keras.utils.plot_model( model, to_file=int_logr.dir()+'/core.png', show_shapes=True )
     int_logr.add_file( 'model.json', model.to_json() )
+
+
 
 
     #--------------------------------------------------------------------------
@@ -228,8 +266,9 @@ if __name__ == '__main__':
 
 
     t_model.fit_generator( generator=WSequence(nP, nN),
-                            epochs=100, verbose=1,
+                            epochs=400, verbose=1,
                             validation_data = WSequence(nP, nN),
                             callbacks=[tb]
                          )
+    print 'Save Final Model : ',  int_logr.dir() + '/core_model.keras'
     model.save( int_logr.dir() + '/core_model.keras' )
