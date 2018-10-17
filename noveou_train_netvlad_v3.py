@@ -21,7 +21,7 @@ import cv2
 
 # CustomNets
 from CustomNets import NetVLADLayer
-from CustomNets import dataload_
+from CustomNets import dataload_, do_typical_data_aug
 from CustomNets import make_from_mobilenet
 
 from InteractiveLogger import InteractiveLogger
@@ -39,6 +39,9 @@ class WSequence(keras.utils.Sequence):
         self.D = dataload_( n_tokyoTimeMachine=n_samples, n_Pitssburg=-1, nP=nP, nN=nN )
         print 'dataload_ returned len(self.D)=', len(self.D), 'self.D[0].shape=', self.D[0].shape
         self.y = np.zeros( len(self.D) )
+
+        # Data Augmentation
+        # self.D = do_typical_data_aug( self.D )
 
         self.epoch = 0
         self.batch_size = 4
@@ -59,15 +62,22 @@ class WSequence(keras.utils.Sequence):
 
     def on_epoch_end(self):
         N = self.refresh_data_after_n_epochs
+
         if self.epoch % N == 0 and self.epoch > 0 :
-            print '[on_epoch_end] done %d epochs, so load new data' %(N)
+            print '[on_epoch_end] done %d epochs, so load new data\t' %(N), int_logr.dir()
+            # Sample Data
             self.D = dataload_( n_tokyoTimeMachine=self.n_samples, n_Pitssburg=-1, nP=nP, nN=nN )
+
+            if self.epoch > 400:
+                # Data Augmentation
+                self.D = do_typical_data_aug( self.D )
+
             print 'dataload_ returned len(self.D)=', len(self.D), 'self.D[0].shape=', self.D[0].shape
             self.y = np.zeros( len(self.D) )
             # modify data
         self.epoch += 1
 
-        #TODO: start data augmentation after say 50 epochs. Don't do too heavy augmentation.
+        # TODO: start data augmentation after say 50 epochs. Don't do too heavy augmentation.
 
 
 
@@ -86,6 +96,7 @@ def triplet_loss( y_true, y_pred ):
     q_dot_P = keras.layers.dot( [q,P], axes=-1 )  # shape=(?, 1, nP)
     q_dot_N = keras.layers.dot( [q,N], axes=-1 )  # shape=(?, 1, nN)
 
+
     epsilon = 0.3  # Your epsilon here
     d_nearest_negative_sample =  K.max( q_dot_N, axis=-1 )
     d_farthest_positive_sample = K.min( q_dot_P, axis=-1 )
@@ -97,6 +108,29 @@ def triplet_loss( y_true, y_pred ):
     # This is desired, so this should have zero loss
 
     return K.maximum( 0., d_nearest_negative_sample - d_farthest_positive_sample + epsilon )
+
+
+# As per the NetVLAD paper's words
+def triplet_loss2( y_true, y_pred ):
+# def triplet_loss2( params ):
+    # y_true, y_pred = params
+    """ Closed negative sample - farthest positive sample """
+    assert( y_pred.shape[1] == 1+nP+nN )
+
+    # y_pred.shape = shape=(?, 5, 512)
+    q = y_pred[:,0:1,:]    # shape=(?, 1, 512)
+    P = y_pred[:,1:1+nP,:] # shape=(?, nP, 512)
+    N = y_pred[:,1+nP:,:]  # shape=(?, nN, 512)
+
+    q_dot_P = keras.layers.dot( [q,P], axes=-1 )  # shape=(?, 1, nP)
+    q_dot_N = keras.layers.dot( [q,N], axes=-1 )  # shape=(?, 1, nN)
+
+
+    epsilon = 0.3  # Your epsilon here
+
+    d_nearest_positive_sample = K.max( q_dot_P, axis=-1, keepdims=True )
+    S = q_dot_N - d_nearest_positive_sample + epsilon #difference between best +ve and all negatives.
+    return K.sum( K.maximum( 0., S ), axis=-1 )
 
 
 
@@ -174,7 +208,7 @@ if __name__ == '__1main__':
 
     # u = keras.layers.Lambda( allpair_hinge_loss )( [y_true, y_pred] )
     # v = keras.layers.Lambda( allpair_count_goodfit )( [y_true, y_pred] )
-    w = keras.layers.Lambda( triplet_loss )( [y_true, y_pred] )
+    w = keras.layers.Lambda( triplet_loss2 )( [y_true, y_pred] )
     model = keras.models.Model( inputs=[y_true,y_pred], outputs=w )
 
     model.summary()
@@ -221,7 +255,9 @@ if __name__ == '__main__':
     image_nrows = 240
     image_ncols = 320
     image_nchnl = 3
-    int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_tripletloss/' )
+    # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_allpairloss/' )
+    # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_tripletloss/' )
+    int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_tripletloss2/' )
     nP = 6
     nN = 6
 
@@ -238,6 +274,8 @@ if __name__ == '__main__':
     model.summary()
     keras.utils.plot_model( model, to_file=int_logr.dir()+'/core.png', show_shapes=True )
     int_logr.add_file( 'model.json', model.to_json() )
+
+    # model.load_weights(  int_logr.dir() + '/core_model.keras' )
 
 
 
@@ -258,7 +296,9 @@ if __name__ == '__main__':
     # Compile
     #--------------------------------------------------------------------------
     sgdopt = keras.optimizers.Adadelta(  )
-    t_model.compile( loss=allpair_hinge_loss, optimizer=sgdopt, metrics=[allpair_count_goodfit] )
+    # t_model.compile( loss=allpair_hinge_loss, optimizer=sgdopt, metrics=[allpair_count_goodfit] )
+    # t_model.compile( loss=triplet_loss, optimizer=sgdopt, metrics=[allpair_count_goodfit] )
+    t_model.compile( loss=triplet_loss2, optimizer=sgdopt, metrics=[allpair_count_goodfit] )
     # int_logr.fire_editor()
 
     import tensorflow as tf
@@ -266,7 +306,7 @@ if __name__ == '__main__':
 
 
     t_model.fit_generator( generator=WSequence(nP, nN),
-                            epochs=400, verbose=1,
+                            epochs=1400, verbose=1,
                             validation_data = WSequence(nP, nN),
                             callbacks=[tb]
                          )
