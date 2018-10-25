@@ -244,9 +244,9 @@ def do_typical_data_aug( D ):
     sometimes_2 = lambda aug: iaa.Sometimes(0.2, aug)
 
 
-    seq = iaa.SomeOf(3, [
+    seq = iaa.Sequential( [
         #iaa.Fliplr(0.5), # horizontal flips
-        iaa.Crop(percent=(0, 0.1)), # random crops
+        #iaa.Crop(percent=(0, 0.1)), # random crops
         # Small gaussian blur with random sigma between 0 and 0.5.
         # But we only blur about 50% of all images.
         iaa.Sometimes(0.5,
@@ -269,7 +269,7 @@ def do_typical_data_aug( D ):
         iaa.Affine(
             scale={"x": (0.8, 1.2), "y": (0.8, 1.2)},
             translate_percent={"x": (-0.2, 0.2), "y": (-0.2, 0.2)},
-            rotate=(-25, 25),
+            rotate=(-45, 45),
             shear=(-8, 8)
         )
     ], random_order=True) # apply augmenters in random order

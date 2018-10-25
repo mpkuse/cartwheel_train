@@ -34,7 +34,7 @@ import imgaug as ia
 
 
 # Test on Tokyo TM
-if __name__ == '__1main__':
+if __name__ == '__main__':
 
     #---
     # Set network
@@ -54,7 +54,8 @@ if __name__ == '__1main__':
 
     # model.load_weights( 'models.keras/model_with_dataaug_batchnorm/core_model_vgg19pretained_fixedvgglayers.keras' )
     # model.load_weights( 'models.keras/model_learn_with_regul_multi_samplefit/core_model.keras' )
-    model.load_weights( 'models.keras/mobilenet_test_conv13/core_model.keras' )
+    # model.load_weights( 'models.keras/mobilenet_conv7_allpairloss/core_model.keras' )
+    model.load_weights( 'models.keras/mobilenet_conv7_tripletloss2/core_model.keras' )
 
 
 
@@ -74,11 +75,11 @@ if __name__ == '__1main__':
         #     ) )
     ])
 
-    # WR_BASE = '/Bulk_Data/data_Akihiko_Torii/Pitssburg/'
-    # wr = PittsburgRenderer( WR_BASE )
+    WR_BASE = '/Bulk_Data/data_Akihiko_Torii/Pitssburg/'
+    wr = PittsburgRenderer( WR_BASE )
 
-    TTM_BASE = '/Bulk_Data/data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
-    wr = TimeMachineRender( TTM_BASE )
+    # TTM_BASE = '/Bulk_Data/data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
+    # wr = TimeMachineRender( TTM_BASE )
 
     for i in range(20):
         nP = 5
@@ -111,7 +112,7 @@ if __name__ == '__1main__':
         if key == ord('q'):
             break
 
-if __name__ == '__main__': # Use __seq__
+if __name__ == '__1main__': # Use __seq__
 
 
     ##
@@ -144,7 +145,8 @@ if __name__ == '__main__': # Use __seq__
     model = keras.models.Model( inputs=input_img, outputs=[out,out_amap]  )
     model.summary()
 
-    model.load_weights( 'models.keras/mobilenet_test_conv7/core_model.keras' )
+    # model.load_weights( 'models.keras/mobilenet_test_conv7/core_model.keras' )
+    model.load_weights( 'models.keras/mobilenet_conv7_allpairloss/core_model.keras' )
 
 
 

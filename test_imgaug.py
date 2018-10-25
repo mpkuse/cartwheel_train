@@ -11,6 +11,7 @@ from imgaug import augmenters as iaa
 import imgaug as ia
 
 import code
+from CustomNets import do_typical_data_aug
 
 def show_images( IM, msg=None ):
     """ Nx240x320x3 """
@@ -220,8 +221,10 @@ for s in range(5):
     D.append( a )
 D = np.array( D )
 
-D = do_typical_data_aug( D )
+E = do_typical_data_aug( D )
 
+# show_images( E[0] )
+show_image_pair( D[0], E[0] )
 
 
 quit()

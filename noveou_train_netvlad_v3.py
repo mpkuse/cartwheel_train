@@ -256,8 +256,10 @@ if __name__ == '__main__':
     image_ncols = 320
     image_nchnl = 3
     # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_allpairloss/' )
-    # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_tripletloss/' )
-    int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_tripletloss2/' )
+    # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_tripletloss2/' )
+
+    int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_quash_chnls_allpairloss/' )
+    # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_quash_chnls_tripletloss2/' )
     nP = 6
     nN = 6
 
@@ -267,6 +269,12 @@ if __name__ == '__main__':
     # Build
     input_img = keras.layers.Input( shape=(image_nrows, image_ncols, image_nchnl ) )
     cnn = make_from_mobilenet( input_img )
+    cnn_dwn = keras.layers.Conv2D( 256, (1,1), padding='same', activation='relu' )( cnn )
+    cnn_dwn = keras.layers.normalization.BatchNormalization()( cnn_dwn )
+    cnn_dwn = keras.layers.Conv2D( 32, (1,1), padding='same', activation='relu' )( cnn_dwn )
+    cnn_dwn = keras.layers.normalization.BatchNormalization()( cnn_dwn )
+    cnn = cnn_dwn
+
     out, out_amap = NetVLADLayer(num_clusters = 16)( cnn )
     model = keras.models.Model( inputs=input_img, outputs=out )
 
@@ -275,6 +283,8 @@ if __name__ == '__main__':
     keras.utils.plot_model( model, to_file=int_logr.dir()+'/core.png', show_shapes=True )
     int_logr.add_file( 'model.json', model.to_json() )
 
+
+    # Load Previous Weights
     # model.load_weights(  int_logr.dir() + '/core_model.keras' )
 
 
@@ -296,9 +306,9 @@ if __name__ == '__main__':
     # Compile
     #--------------------------------------------------------------------------
     sgdopt = keras.optimizers.Adadelta(  )
-    # t_model.compile( loss=allpair_hinge_loss, optimizer=sgdopt, metrics=[allpair_count_goodfit] )
-    # t_model.compile( loss=triplet_loss, optimizer=sgdopt, metrics=[allpair_count_goodfit] )
-    t_model.compile( loss=triplet_loss2, optimizer=sgdopt, metrics=[allpair_count_goodfit] )
+    t_model.compile( loss=allpair_hinge_loss, optimizer=sgdopt, metrics=[allpair_count_goodfit] )
+    # t_model.compile( loss=triplet_loss, optimizer=sgdopt, metrics=[allpair_count_goodfit] ) #not in use. TODO removal
+    # t_model.compile( loss=triplet_loss2, optimizer=sgdopt, metrics=[allpair_count_goodfit] )
     # int_logr.fire_editor()
 
     import tensorflow as tf
@@ -306,7 +316,7 @@ if __name__ == '__main__':
 
 
     t_model.fit_generator( generator=WSequence(nP, nN),
-                            epochs=1400, verbose=1,
+                            epochs=1500, verbose=1, initial_epoch=0,
                             validation_data = WSequence(nP, nN),
                             callbacks=[tb]
                          )
