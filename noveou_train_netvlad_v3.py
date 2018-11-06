@@ -25,7 +25,7 @@ from CustomNets import dataload_, do_typical_data_aug
 from CustomNets import make_from_mobilenet
 
 # CustomLoses
-from CustomLosses import triplet_loss2_maker, allpair_hinge_loss_maker, allpair_count_goodfit_maker
+from CustomLosses import triplet_loss2_maker, allpair_hinge_loss_maker, allpair_count_goodfit_maker, positive_set_deviation_maker, allpair_hinge_loss_with_positive_set_deviation_maker
 
 from InteractiveLogger import InteractiveLogger
 
@@ -38,19 +38,24 @@ from PittsburgRenderer import PittsburgRenderer
 
 class WSequence(keras.utils.Sequence):
     """  This class depends on CustomNets.dataload_ for loading data. """
-    def __init__(self, nP, nN, n_samples=500, initial_epoch=0 ):
-        # self.x, self.y = x_set, y_set
-        self.D = dataload_( n_tokyoTimeMachine=n_samples, n_Pitssburg=-1, nP=nP, nN=nN )
-        print 'dataload_ returned len(self.D)=', len(self.D), 'self.D[0].shape=', self.D[0].shape
-        self.y = np.zeros( len(self.D) )
+    def __init__(self, nP, nN, n_samples=(500,-1), initial_epoch=0 ):
 
-        # Data Augmentation
-        # self.D = do_typical_data_aug( self.D )
-
+        assert( type(n_samples) == type(()) )
+        assert( len(n_samples) == 2 )
+        self.n_samples_tokyo = n_samples[0]
+        self.n_samples_pitts = n_samples[1]
         self.epoch = initial_epoch
         self.batch_size = 4
         self.refresh_data_after_n_epochs = 20
-        self.n_samples = n_samples
+        # self.n_samples = n_samples
+
+
+
+        self.D = dataload_( n_tokyoTimeMachine=self.n_samples_tokyo, n_Pitssburg=self.n_samples_pitts, nP=nP, nN=nN )
+        print 'dataload_ returned len(self.D)=', len(self.D), 'self.D[0].shape=', self.D[0].shape
+        self.y = np.zeros( len(self.D) )
+
+
 
     def __len__(self):
         return int(np.ceil(len(self.D) / float(self.batch_size)))
@@ -60,7 +65,6 @@ class WSequence(keras.utils.Sequence):
         batch_y = self.y[idx * self.batch_size:(idx + 1) * self.batch_size]
 
         return np.array( batch_x ), np.array( batch_y )
-
        #TODO: Can return another number (sample_weight) for the sample. Which can be judge say by GMS matcher. If we see higher matches amongst +ve set ==> we have good positive samples,
 
 
@@ -70,10 +74,11 @@ class WSequence(keras.utils.Sequence):
         if self.epoch % N == 0 and self.epoch > 0 :
             print '[on_epoch_end] done %d epochs, so load new data\t' %(N), int_logr.dir()
             # Sample Data
-            self.D = dataload_( n_tokyoTimeMachine=self.n_samples, n_Pitssburg=-1, nP=nP, nN=nN )
+            self.D = dataload_( n_tokyoTimeMachine=self.n_samples_tokyo, n_Pitssburg=self.n_samples_pitts, nP=nP, nN=nN )
+
 
             if self.epoch > 400:
-                # Data Augmentation
+                # Data Augmentation after 400 epochs
                 self.D = do_typical_data_aug( self.D )
 
             print 'dataload_ returned len(self.D)=', len(self.D), 'self.D[0].shape=', self.D[0].shape
@@ -81,7 +86,7 @@ class WSequence(keras.utils.Sequence):
             # modify data
         self.epoch += 1
 
-        # TODO: start data augmentation after say 50 epochs. Don't do too heavy augmentation.
+
 
 
 
@@ -96,7 +101,7 @@ if __name__ == '__main__':
 
     # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_quash_chnls_allpairloss/' )
     # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_quash_chnls_tripletloss2_K64/' )
-    int_logr = InteractiveLogger( './models.keras/test/' )
+    int_logr = InteractiveLogger( './models.keras/test/test2' )
     nP = 6
     nN = 6
 
@@ -106,13 +111,14 @@ if __name__ == '__main__':
     # Build
     input_img = keras.layers.Input( shape=(image_nrows, image_ncols, image_nchnl ) )
     cnn = make_from_mobilenet( input_img )
-    cnn_dwn = keras.layers.Conv2D( 256, (1,1), padding='same', activation='relu' )( cnn )
-    cnn_dwn = keras.layers.normalization.BatchNormalization()( cnn_dwn )
-    cnn_dwn = keras.layers.Conv2D( 32, (1,1), padding='same', activation='relu' )( cnn_dwn )
-    cnn_dwn = keras.layers.normalization.BatchNormalization()( cnn_dwn )
-    cnn = cnn_dwn
+    # Reduce nChannels of the output.
+    # cnn_dwn = keras.layers.Conv2D( 256, (1,1), padding='same', activation='relu' )( cnn )
+    # cnn_dwn = keras.layers.normalization.BatchNormalization()( cnn_dwn )
+    # cnn_dwn = keras.layers.Conv2D( 32, (1,1), padding='same', activation='relu' )( cnn_dwn )
+    # cnn_dwn = keras.layers.normalization.BatchNormalization()( cnn_dwn )
+    # cnn = cnn_dwn
 
-    out, out_amap = NetVLADLayer(num_clusters = 64)( cnn )
+    out, out_amap = NetVLADLayer(num_clusters = 16)( cnn )
     model = keras.models.Model( inputs=input_img, outputs=out )
 
     # Plot
@@ -146,20 +152,25 @@ if __name__ == '__main__':
     # Compile
     #--------------------------------------------------------------------------
     sgdopt = keras.optimizers.Adadelta(  )
-    loss = loss=triplet_loss2_maker(nP=nP, nN=nN, epsilon=0.3)
-    metrics = allpair_count_goodfit_maker( nP=nP, nN=nN, epsilon=0.3 )
+
+    # loss = triplet_loss2_maker(nP=nP, nN=nN, epsilon=0.3)
+    loss = allpair_hinge_loss_with_positive_set_deviation_maker(nP=nP, nN=nN, epsilon=0.3, opt_lambda=0.1 )
+
+    metrics = [ allpair_count_goodfit_maker( nP=nP, nN=nN, epsilon=0.3 ),
+                positive_set_deviation_maker(nP=nP, nN=nN)
+              ]
 
     # t_model.compile( loss=allpair_hinge_loss, optimizer=sgdopt, metrics=[allpair_count_goodfit] )
-    t_model.compile( loss=loss, optimizer=sgdopt, metrics=[metrics] )
+    t_model.compile( loss=loss, optimizer=sgdopt, metrics=metrics )
 
 
     import tensorflow as tf
     tb = tf.keras.callbacks.TensorBoard( log_dir=int_logr.dir() )
 
 
-    t_model.fit_generator( generator=WSequence(nP, nN, initial_epoch=initial_epoch),
-                            epochs=900, verbose=1, initial_epoch=initial_epoch,
-                            validation_data = WSequence(nP, nN),
+    t_model.fit_generator( generator=WSequence(nP, nN, n_samples=(500,-1), initial_epoch=initial_epoch),
+                            epochs=1200, verbose=1, initial_epoch=initial_epoch,
+                            validation_data = WSequence(nP, nN, n_samples=(-1,500) ),
                             callbacks=[tb]
                          )
     print 'Save Final Model : ',  int_logr.dir() + '/core_model.keras'

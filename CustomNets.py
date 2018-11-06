@@ -38,7 +38,7 @@ def dataload_( n_tokyoTimeMachine, n_Pitssburg, nP, nN ):
         for s in range(n_tokyoTimeMachine):
             a,_ = pr.step(nP=nP, nN=nN, return_gray=False, resize=(320,240), apply_distortions=False, ENABLE_IMSHOW=False)
             if s%100 == 0:
-                print 'get a sample #%d of %d\t' %(s, n_tokyoTimeMachine),
+                print 'get a sample Tokyo_TM #%d of %d\t' %(s, n_tokyoTimeMachine),
                 print a.shape
             D.append( a )
 
@@ -49,7 +49,7 @@ def dataload_( n_tokyoTimeMachine, n_Pitssburg, nP, nN ):
         for s in range(n_Pitssburg):
             a,_ = pr.step(nP=nP, nN=nN, return_gray=False, resize=(240,320), apply_distortions=False, ENABLE_IMSHOW=False)
             if s %100 == 0:
-                print 'get a sample #%d of %d\t' %(s, n_Pitssburg),
+                print 'get a sample Pitssburg #%d of %d\t' %(s, n_Pitssburg),
                 print a.shape
             D.append( a )
 
@@ -438,16 +438,7 @@ def make_upsampling_vgg( input_img  ):
     out = keras.layers.Add()( [x,y,z] )
     return out
 
-def make_from_vgg19( input_img, trainable=True ):
-    base_model = keras.applications.vgg19.VGG19(weights='imagenet', include_top=False, input_tensor=input_img)
 
-    for l in base_model.layers:
-        l.trainable = trainable
-
-    base_model_out = base_model.get_layer('block2_pool').output
-
-    z = keras.layers.Conv2DTranspose( 32, (9,9), strides=4, padding='same' )( base_model_out )
-    return z
 
 def make_from_vgg19_multiconvup( input_img, trainable=True ):
     base_model = keras.applications.vgg19.VGG19(weights='imagenet', include_top=False, input_tensor=input_img)
@@ -464,32 +455,42 @@ def make_from_vgg19_multiconvup( input_img, trainable=True ):
     up_conv_out = keras.layers.Conv2DTranspose( 32, (9,9), strides=2, padding='same', activation='relu' )( up_conv_out )
     up_conv_out = keras.layers.normalization.BatchNormalization()( up_conv_out )
 
-
     return up_conv_out
 
 
-def make_from_mobilenet( input_img ):
+def make_from_mobilenet( input_img, weights='imagenet', layer_name='conv_pw_7_relu' ):
     # input_img = keras.layers.BatchNormalization()(input_img)
 
-    base_model = keras.applications.mobilenet.MobileNet( weights='imagenet', include_top=False, input_tensor=input_img )
-    # base_model = keras.applications.mobilenet.MobileNet( weights=None, include_top=False, input_tensor=input_img )
-    # keras.utils.plot_model( base_model, to_file='base_model.png', show_shapes=True )
+    base_model = keras.applications.mobilenet.MobileNet( weights=weights, include_top=False, input_tensor=input_img )
 
     # Pull out a layer from original network
-    base_model_out = base_model.get_layer( 'conv_pw_7_relu').output # can also try conv_pw_7_relu etc.
+    base_model_out = base_model.get_layer( layer_name ).output # can also try conv_pw_7_relu etc.
 
-    # Up-sample
-    # Basic idea is to try upsampling without using the transposed-conv layers. Instead use either of
-    #   a) upsampling2d
-    #   b) depth to space
-    # followed by CBR (conv-BN-relu)
-    # TODO
-    ups_out = base_model_out
-    # ups_out = keras.layers.UpSampling2D( size=(4,4) )( base_model_out )
+    return base_model_out
 
-    # model = keras.models.Model( inputs=input_img, outputs=ups_out )
-    # model.summary()
-    # keras.utils.plot_model( model, to_file='base_model.png', show_shapes=True )
-    # code.interact( local=locals() )
 
-    return ups_out
+
+def make_from_vgg19( input_img, weights='imagenet', trainable=True, layer_name='block2_pool' ):
+    base_model = keras.applications.vgg19.VGG19(weights=weights, include_top=False, input_tensor=input_img)
+
+    for l in base_model.layers:
+        l.trainable = trainable
+
+    base_model_out = base_model.get_layer(layer_name).output
+    return base_model_out
+
+    # Removal. TODO: Not more in use.
+    # z = keras.layers.Conv2DTranspose( 32, (9,9), strides=4, padding='same' )( base_model_out )
+    # return z
+
+
+
+
+def make_from_vgg16( input_img, weights='imagenet', trainable=True, layer_name='block2_pool' ):
+    base_model = keras.applications.vgg16.VGG16(weights=weights, include_top=False, input_tensor=input_img)
+
+    for l in base_model.layers:
+        l.trainable = trainable
+
+    base_model_out = base_model.get_layer(layer_name).output
+    return base_model_out

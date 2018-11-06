@@ -16,11 +16,10 @@ import code
 
 
 def triplet_loss2_maker( nP, nN, epsilon=0.3 ):
-
     # As per the NetVLAD paper's words
-    def triplet_loss2( y_true, y_pred ):
     # def triplet_loss2( params ):
         # y_true, y_pred = params
+    def triplet_loss2( y_true, y_pred ):
         """ Closed negative sample - farthest positive sample """
         assert( y_pred.shape[1] == 1+nP+nN )
 
@@ -110,6 +109,60 @@ def allpair_count_goodfit_maker( nP, nN, epsilon=0.3 ):
     return allpair_count_goodfit
 
 
+def positive_set_deviation_maker( nP, nN ):
+    # def positive_set_deviation( params ):
+        # y_true, y_pred = params
+    def positive_set_deviation(y_true, y_pred):
+        assert( y_pred.shape[1] == 1+nP+nN )
+
+        # y_pred.shape = shape=(?, 5, 512)
+        q = y_pred[:,0:1,:]    # shape=(?, 1, 512)
+        P = y_pred[:,1:1+nP,:] # shape=(?, 2, 512)
+        N = y_pred[:,1+nP:,:]  # shape=(?, 2, 512)
+
+        q_dot_P = keras.layers.dot( [q,P], axes=-1 )  # shape=(?, 1, nP)
+        q_dot_N = keras.layers.dot( [q,N], axes=-1 )  # shape=(?, 1, nN)
+
+        p_std = K.std( q_dot_P, axis=[-1,-2] )
+        return p_std
+    return positive_set_deviation
+
+
+def allpair_hinge_loss_with_positive_set_deviation_maker( nP, nN, epsilon=0.3, opt_lambda=1.0 ):
+    # def allpair_hinge_loss_with_positive_set_deviation( params ):
+        # y_true, y_pred = params
+    def allpair_hinge_loss_with_positive_set_deviation(y_true, y_pred):
+        """ All pair loss with positive set deviation"""
+        # nP = 3
+        # nN = 2
+        assert( y_pred.shape[1] == 1+nP+nN )
+
+        # y_pred.shape = shape=(?, 5, 512)
+        q = y_pred[:,0:1,:]    # shape=(?, 1, 512)
+        P = y_pred[:,1:1+nP,:] # shape=(?, 2, 512)
+        N = y_pred[:,1+nP:,:]  # shape=(?, 2, 512)
+
+        q_dot_P = keras.layers.dot( [q,P], axes=-1 )  # shape=(?, 1, 2)
+        q_dot_N = keras.layers.dot( [q,N], axes=-1 )  # shape=(?, 1, 2)
+
+        # epsilon = 0.3  # Your epsilon here
+
+        zeros = K.zeros((nP, nN), dtype='float32')
+        ones_m = K.ones((nP,1), dtype='float32')
+        ones_n = K.ones((nN,1), dtype='float32')
+
+
+        _1m__qdotN_T = ones_m[None,:] * q_dot_N # 1m ( \delta^q_N )^T
+        qdotP__1n_T = K.permute_dimensions( ones_n[None,:] * q_dot_P, [0,2,1] ) # ( \delta^q_P ) 1n^T
+        _1m__1n_T = epsilon * ones_m[None,:] * K.permute_dimensions( ones_n[None,:], [0,2,1] ) # 1m 1n^T
+
+        aux = _1m__qdotN_T - qdotP__1n_T + _1m__1n_T
+
+        p_std = K.std( q_dot_P, axis=[-1,-2] ) #positive_set_deviation term
+        return K.sum( K.maximum(zeros, aux) , axis=[-1,-2] ) + opt_lambda * p_std
+
+    return allpair_hinge_loss_with_positive_set_deviation
+
 # Verify loss function
 if __name__ == '__main__':
     np.random.seed(0)
@@ -119,10 +172,11 @@ if __name__ == '__main__':
     y_pred = keras.layers.Input( shape=(nP+nN+1,7) )
 
 
-    w = keras.layers.Lambda( triplet_loss2_maker( nP=nP, nN=nN, epsilon=0.1) )( [y_true, y_pred] )
+    w = keras.layers.Lambda( allpair_hinge_loss_with_positive_set_deviation_maker( nP=nP, nN=nN, epsilon=0.3, opt_lambda=1.0) )( [y_true, y_pred] )
     # w = keras.layers.Lambda( allpair_hinge_loss_maker( nP=nP, nN=nN, epsilon=0.1) )( [y_true, y_pred] )
-    w_c = keras.layers.Lambda( allpair_count_goodfit_maker( nP=nP, nN=nN, epsilon=0.1) )( [y_true, y_pred] )
-    model = keras.models.Model( inputs=[y_true,y_pred], outputs=[w, w_c] )
+    # w_c = keras.layers.Lambda( allpair_count_goodfit_maker( nP=nP, nN=nN, epsilon=0.1) )( [y_true, y_pred] )
+    # w_c = keras.layers.Lambda( positive_set_deviation_maker( nP=nP, nN=nN, opt_lambda=.5) )( [y_true, y_pred] )
+    model = keras.models.Model( inputs=[y_true,y_pred], outputs=[w] )
 
     model.summary()
     keras.utils.plot_model( model, show_shapes=True )
