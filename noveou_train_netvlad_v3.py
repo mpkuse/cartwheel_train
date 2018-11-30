@@ -22,7 +22,7 @@ import cv2
 # CustomNets
 from CustomNets import NetVLADLayer
 from CustomNets import dataload_, do_typical_data_aug
-from CustomNets import make_from_mobilenet
+from CustomNets import make_from_mobilenet, make_from_vgg16
 
 # CustomLoses
 from CustomLosses import triplet_loss2_maker, allpair_hinge_loss_maker, allpair_count_goodfit_maker, positive_set_deviation_maker, allpair_hinge_loss_with_positive_set_deviation_maker
@@ -77,8 +77,9 @@ class WSequence(keras.utils.Sequence):
             self.D = dataload_( n_tokyoTimeMachine=self.n_samples_tokyo, n_Pitssburg=self.n_samples_pitts, nP=nP, nN=nN )
 
 
-            if self.epoch > 400:
-                # Data Augmentation after 400 epochs
+            # if self.epoch > 400:
+            if self.epoch > 400 and self.n_samples_pitts<0:
+                # Data Augmentation after 400 epochs. Only do for Tokyo which are used for training. ie. dont augment Pitssburg.
                 self.D = do_typical_data_aug( self.D )
 
             print 'dataload_ returned len(self.D)=', len(self.D), 'self.D[0].shape=', self.D[0].shape
@@ -87,6 +88,16 @@ class WSequence(keras.utils.Sequence):
         self.epoch += 1
 
 
+class CustomModelCallback(keras.callbacks.Callback):
+    def __init__(self, model_tosave, int_logr ):
+        self.m_model = model_tosave
+        self.m_int_logr = int_logr
+
+    def on_epoch_begin(self, epoch, logs={}):
+        if epoch>0 and epoch%200 == 0:
+            fname = self.m_int_logr.dir() + '/core_model.%d.keras' %(epoch)
+            print 'Save Intermediate Model : ', fname
+            self.m_model.save( fname )
 
 
 
@@ -101,7 +112,9 @@ if __name__ == '__main__':
 
     # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_quash_chnls_allpairloss/' )
     # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_quash_chnls_tripletloss2_K64/' )
-    int_logr = InteractiveLogger( './models.keras/test/test2' )
+
+    # int_logr = InteractiveLogger( './models.keras/vgg16/block5_pool_k48_tripletloss2' )
+    int_logr = InteractiveLogger( './models.keras/vgg16/block5_pool_k48_allpairloss' )
     nP = 6
     nN = 6
 
@@ -110,7 +123,8 @@ if __name__ == '__main__':
     #--------------------------------------------------------------------------
     # Build
     input_img = keras.layers.Input( shape=(image_nrows, image_ncols, image_nchnl ) )
-    cnn = make_from_mobilenet( input_img )
+    # cnn = make_from_mobilenet( input_img )
+    cnn = make_from_vgg16( input_img, layer_name='block5_pool' )
     # Reduce nChannels of the output.
     # cnn_dwn = keras.layers.Conv2D( 256, (1,1), padding='same', activation='relu' )( cnn )
     # cnn_dwn = keras.layers.normalization.BatchNormalization()( cnn_dwn )
@@ -118,7 +132,7 @@ if __name__ == '__main__':
     # cnn_dwn = keras.layers.normalization.BatchNormalization()( cnn_dwn )
     # cnn = cnn_dwn
 
-    out, out_amap = NetVLADLayer(num_clusters = 16)( cnn )
+    out, out_amap = NetVLADLayer(num_clusters = 48)( cnn )
     model = keras.models.Model( inputs=input_img, outputs=out )
 
     # Plot
@@ -127,9 +141,10 @@ if __name__ == '__main__':
     int_logr.add_file( 'model.json', model.to_json() )
 
 
-    # Load Previous Weights
-    # model.load_weights(  int_logr.dir() + '/core_model.950.keras' )
-    initial_epoch = 0
+    initial_epoch = 400
+    if initial_epoch > 0:
+        # Load Previous Weights
+        model.load_weights(  int_logr.dir() + '/core_model.%d.keras' %(initial_epoch) )
 
 
 
@@ -143,7 +158,7 @@ if __name__ == '__main__':
     t_model = keras.models.Model( inputs=t_input, outputs=t_out )
 
     t_model.summary()
-    keras.utils.plot_model( t_model, to_file=int_logr.dir()+'core_t.png', show_shapes=True )
+    keras.utils.plot_model( t_model, to_file=int_logr.dir()+'/core_t.png', show_shapes=True )
     print 'Write Directory : ', int_logr.dir()
     # int_logr.fire_editor()
 
@@ -151,10 +166,12 @@ if __name__ == '__main__':
     #--------------------------------------------------------------------------
     # Compile
     #--------------------------------------------------------------------------
-    sgdopt = keras.optimizers.Adadelta(  )
+    # sgdopt = keras.optimizers.Adadelta( )
+    sgdopt = keras.optimizers.Adam( lr=0.0001 )
 
     # loss = triplet_loss2_maker(nP=nP, nN=nN, epsilon=0.3)
-    loss = allpair_hinge_loss_with_positive_set_deviation_maker(nP=nP, nN=nN, epsilon=0.3, opt_lambda=0.1 )
+    # loss = allpair_hinge_loss_with_positive_set_deviation_maker(nP=nP, nN=nN, epsilon=0.3, opt_lambda=0.5 )
+    loss = allpair_hinge_loss_maker( nP=nP, nN=nN, epsilon=0.3 )
 
     metrics = [ allpair_count_goodfit_maker( nP=nP, nN=nN, epsilon=0.3 ),
                 positive_set_deviation_maker(nP=nP, nN=nN)
@@ -166,12 +183,13 @@ if __name__ == '__main__':
 
     import tensorflow as tf
     tb = tf.keras.callbacks.TensorBoard( log_dir=int_logr.dir() )
+    saver_cb = CustomModelCallback( model, int_logr )
 
 
     t_model.fit_generator( generator=WSequence(nP, nN, n_samples=(500,-1), initial_epoch=initial_epoch),
                             epochs=1200, verbose=1, initial_epoch=initial_epoch,
                             validation_data = WSequence(nP, nN, n_samples=(-1,500) ),
-                            callbacks=[tb]
+                            callbacks=[tb,saver_cb]
                          )
     print 'Save Final Model : ',  int_logr.dir() + '/core_model.keras'
     model.save( int_logr.dir() + '/core_model.keras' )

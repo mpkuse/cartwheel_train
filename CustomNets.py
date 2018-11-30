@@ -25,6 +25,64 @@ from TimeMachineRender import TimeMachineRender
 from WalksRenderer import WalksRenderer
 from PittsburgRenderer import PittsburgRenderer
 
+
+#-------------------------------------------------------------------------------
+# Utilities
+#-------------------------------------------------------------------------------
+# Forward pass memory requirement
+def print_model_memory_usage(batch_size, model):
+    shapes_mem_count = 0
+    for l in model.layers: #loop on layers
+        # print '---\n', l
+        # print 'out_shapes: ', str( l.output_shape ),
+        # print 'isList: ', type(l.output_shape) == type(list()),
+        # print 'isTuple: ', type(l.output_shape) == type(tuple())
+
+
+        all_output_shapes = l.output_shape
+        if type(all_output_shapes) != type(list()):
+            all_output_shapes = list( [all_output_shapes] )
+
+        for n_out in all_output_shapes:
+            single_layer_mem = 1
+            for s in n_out: #loop on outputs shape
+                if s is None:
+                    continue
+                single_layer_mem *= s
+            # print 'single_layer_mem', single_layer_mem
+            shapes_mem_count+= single_layer_mem
+
+
+        shapes_mem_count += single_layer_mem
+
+    trainable_count = np.sum([K.count_params(p) for p in set(model.trainable_weights)])
+    non_trainable_count = np.sum([K.count_params(p) for p in set(model.non_trainable_weights)])
+
+    print 'Model file (MB): %4.2f' %(4 * (trainable_count + non_trainable_count) / 1024**2 )
+    print '#Trainable Params: ', trainable_count
+    print 'Layers(batch_size)=%d (MB): %4.2f' %(batch_size, 4.0*batch_size*shapes_mem_count/1024**2 )
+
+    total_memory = 4.0*(batch_size*shapes_mem_count + trainable_count + non_trainable_count) # 4 is multiplied because all the memoery is of data-type float32 (4 bytes)
+    print 'Total Memory(MB): %4.2f' %( total_memory/1024**2 )
+    # gbytes = np.round(total_memory / (1024.0 ** 3), 3)
+    # return gbytes
+
+
+def print_flops_report(model):
+    # Batch need to be specified for flops number to be accurate.
+    import tensorflow as tf
+    run_meta = tf.RunMetadata()
+    opts = tf.profiler.ProfileOptionBuilder.float_operation()
+
+    # We use the Keras session graph in the call to the profiler.
+    flops = tf.profiler.profile(graph=K.get_session().graph,
+                                run_meta=run_meta, cmd='op', options=opts)
+    print 'Total floating point operations (FLOPS) : ', flops.total_float_ops
+    print 'Total floating point operations (GFLOPS) : %4.3f' %( flops.total_float_ops/1000.**3 )
+    # return flops.total_float_ops  # Prints the "flops" of the model.
+
+
+
 #--------------------------------------------------------------------------------
 # Data
 #--------------------------------------------------------------------------------
@@ -368,6 +426,14 @@ class NetVLADLayer( Layer ):
         # return (input_shape[0], self.v.shape[-1].value )
         # return [(input_shape[0], self.K*self.D ), (input_shape[0], self.amap.shape[1].value, self.amap.shape[2].value) ]
         return [(input_shape[0], self.K*self.D ), (input_shape[0], input_shape[1], input_shape[2]) ]
+
+    def get_config( self ):
+        pass
+        # import code
+        # code.interact( local=locals() )
+        base_config = super(NetVLADLayer, self).get_config()
+        # return dict(list(base_config.items()) + list(config.items()))
+        return dict(list(base_config.items()))
 
 
 #--------------------------------------------------------------------------------
