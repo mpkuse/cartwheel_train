@@ -1,68 +1,71 @@
-# CartWheel Training
-Training code for NetVLAD. Re-Implemented with tensorflow. Use of proposed cost-function for recognizing places for loop-closure detection.
-
+# NetVLAD Training
+A sleek, easy to read/modify implementation of NetVLAD. This needs Keras2.
+I have made this with Tensorflow1.11 as the backend but in principle should
+also work with other backends supported by keras.
 
 ## Author
 Manohar Kuse <mpkuse@connect.ust.hk> <br/>
 
 
 ## Required Packages
-Panda3D - Rendering (only if you use PandaRender.py/PandaRender)<br/>
-TensorFlow - Deep learning toolkit (v.1.0+)<br/>
-PIL - Image Processing <br/>
-skimage - Image Processing <br/>
+Keras2
+TensorFlow - Deep learning toolkit (v.1.08+)<br/>
 cv2 - OpenCV <br/>
-numpy - Python Math
+numpy - Python Math <br/>
+[imgaug](https://github.com/aleju/imgaug) - Data Augmentation.
+Panda3D - Rendering (only if you use PandaRender.py/PandaRender)<br/>
 
 
 ## Howto train?
-Main code : train_netvlad.py. Following will load the `config/A.json` as vital training parameters
-and write the output to folder `tf3.logs/A`. You may try other configurations.
+The main code lies in `noveou_train_netvlad_v3.py`. It mainly depends on `CustomNets.py` (contains network definations, NetVLADLayer, data loading, data augmenters) and on `CustomLosses.py` (contains loss functions
+    and validation metrics).
 
-It also uses the Pitts250k dataset (should be in `cartwheel_train/data_Akihiko_Torii/Pitssburg`). For info on datasets see next section.
+You may want to tune all other parameters such as
+the K for NetVLAD, logging directory, SGD optimizer etc. directly from the script `noveou_train_netvlad_v3.py`
+Contributions welcome to make this more user friendly.
 
-Usage:
 ```
-python train_netvlad.py -t tf3.logs/A/ -f config/A.json
-```
-
-## Howto obtain image descriptor?
-If you wish to obtain image descriptors for your own images, look at the script `association_map.py`.
-You can also obtain the association maps (similar to ones shown in the paper).
-You just need trained models and images for which you wish to compute the
-descriptors. A few images provided in `sample_images`.
-
-Usage:
-```
-python association_map.py
+python noveou_train_netvlad_v3.py
 ```
 
 ## Training Data
-You can request the Pitts250k dataset from : [NetVLAD: CNN architecture for weakly supervised place recognition](http://www.di.ens.fr/willow/research/netvlad/)
+Make sure you have the Tokyo_TM, PittsburgData and correctly
+set the paths. These two datasets can be obtained from
+[here](https://www.di.ens.fr/willow/research/netvlad/).
+This data is loaded on a per-batch basis. The relavant code is in `test_render.py`
+and `CustomNets.py/dataload_()`.
 
-It is also possible to train this network with a 3D model using Panda3d rendering engine. Put an issue in this repo if you wish to set it up for yourself. I believe I can help you set it up.
-Alternately, see the script `test_render.py`. You need a working panda3d to work. In the
+It is also possible to use your own custom data for training, so long as you can
+pick positive and negative samples for a query image from your dataset. Here, by positive sample
+we refer to an image which is the sample physical place as the query image
+but different viewpoints. By negative sample we mean an image with different
+physical scene than the query image.
+
+Google's streetview data and Mappillary data are excellent sources for training an even
+general representation. Google provides a RestAPI to programatically retrive streetview image
+given GPS co-ordinates. I have some scripts to load such data which I plan to release soon.
+See [here](https://developers.google.com/maps/documentation/streetview/intro) for Streetview-api.
+Similarly look at [Mappilary developer API](https://www.mapillary.com/developer) to retrieve mappilary data.
+
+Additionally, data from SLAM system can be yet another good source of training data
+for place recognition system.
+
+It is also possible to train this network with a 3D model using Panda3d rendering engine.
+See the script `test_render.py`. You need a working panda3d to work. In the
 future I will make it easy to train with 3d models (in OBJ format).
 
-Walking videos datatset with/without SLAM data. (work in progress).
 
-Additionally there is also a Google Street view API which you can crawl yourself to generate data.
-In the future will provide self collected street view data.
-
-## Trained Model
-A few Pre-trained models will be provided for comparison / reference. TODO.
-
-#### K=16
-- ResNet6 with triplet-ranking loss.
-- ResNet6 with pairwise loss + positive set deviation penalty.
-- ResNet6 with pairwise loss
-- VGG6 with triplet-ranking loss
-- VGG6 with pairwise loss + positive set deviation penalty.
-
-#### K=32
+**
+If you need help setting up my code with your data, I am willing to help. Put up
+info under issues on this github repo, I will try and help you out.
+**
 
 
-#### K=64
+## Howto obtain image descriptor?
+Usage:
+```
+python demo_compute_im_descriptor.py
+```
 
 ## References
 If you use my data/code or if you compare with my results, please do cite. Also cite

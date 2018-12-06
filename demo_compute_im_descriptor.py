@@ -64,13 +64,18 @@ def do_demo():
 
 
     ##---------- Print Model Info, Memory Usage, FLOPS
-    model.summary()
-    print_flops_report( model )
-    print_model_memory_usage( 1, model )
-    print 'input_shape=%s\toutput_shape=%s' %( model.input_shape, model.output_shape )
+    if False: # Set this to `True` to display FLOPs, memory etc .
+        model.summary()
+        print_flops_report( model )
+        print_model_memory_usage( 1, model )
+        print 'input_shape=%s\toutput_shape=%s' %( model.input_shape, model.output_shape )
+
+    ##------------ Load Weights
+
 
 
     ##------------model.predict
+    # Load your image here.
     tmp_zer = np.random.rand( 1,im_rows,im_cols,im_chnls  ).astype('float32')
     start = time.time()
     tmp_zer_out = model.predict( tmp_zer )

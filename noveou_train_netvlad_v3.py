@@ -17,6 +17,7 @@ import keras
 import code
 import numpy as np
 import cv2
+import pickle
 
 
 # CustomNets
@@ -77,6 +78,7 @@ class WSequence(keras.utils.Sequence):
             self.D = dataload_( n_tokyoTimeMachine=self.n_samples_tokyo, n_Pitssburg=self.n_samples_pitts, nP=nP, nN=nN )
 
 
+
             # if self.epoch > 400:
             if self.epoch > 400 and self.n_samples_pitts<0:
                 # Data Augmentation after 400 epochs. Only do for Tokyo which are used for training. ie. dont augment Pitssburg.
@@ -99,14 +101,27 @@ class CustomModelCallback(keras.callbacks.Callback):
             print 'Save Intermediate Model : ', fname
             self.m_model.save( fname )
 
+        if epoch%20 == 0:
+            print 'm_int_logr=', self.m_int_logr.dir()
+
 
 
 
 # Training
 if __name__ == '__main__':
+    from keras.backend.tensorflow_backend import set_session
+    import tensorflow as tf
+    config = tf.ConfigProto()
+    config.gpu_options.per_process_gpu_memory_fraction = 0.7
+    # config.gpu_options.visible_device_list = "0"
+    set_session(tf.Session(config=config))
+
     image_nrows = 240
     image_ncols = 320
     image_nchnl = 3
+
+    nP = 6
+    nN = 6
     # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_allpairloss/' )
     # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_tripletloss2/' )
 
@@ -114,9 +129,8 @@ if __name__ == '__main__':
     # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_quash_chnls_tripletloss2_K64/' )
 
     # int_logr = InteractiveLogger( './models.keras/vgg16/block5_pool_k48_tripletloss2' )
-    int_logr = InteractiveLogger( './models.keras/vgg16/block5_pool_k48_allpairloss' )
-    nP = 6
-    nN = 6
+    int_logr = InteractiveLogger( './models.keras/vgg16_new/block5_pool_k16_allpairloss' )
+
 
     #--------------------------------------------------------------------------
     # Core Model Setup
@@ -126,13 +140,15 @@ if __name__ == '__main__':
     # cnn = make_from_mobilenet( input_img )
     cnn = make_from_vgg16( input_img, layer_name='block5_pool' )
     # Reduce nChannels of the output.
-    # cnn_dwn = keras.layers.Conv2D( 256, (1,1), padding='same', activation='relu' )( cnn )
-    # cnn_dwn = keras.layers.normalization.BatchNormalization()( cnn_dwn )
-    # cnn_dwn = keras.layers.Conv2D( 32, (1,1), padding='same', activation='relu' )( cnn_dwn )
-    # cnn_dwn = keras.layers.normalization.BatchNormalization()( cnn_dwn )
-    # cnn = cnn_dwn
+    # @ Downsample (Optional)
+    if False: #Downsample last layer (Reduce nChannels of the output.)
+        cnn_dwn = keras.layers.Conv2D( 256, (1,1), padding='same', activation='relu' )( cnn )
+        cnn_dwn = keras.layers.normalization.BatchNormalization()( cnn_dwn )
+        cnn_dwn = keras.layers.Conv2D( 32, (1,1), padding='same', activation='relu' )( cnn_dwn )
+        cnn_dwn = keras.layers.normalization.BatchNormalization()( cnn_dwn )
+        cnn = cnn_dwn
 
-    out, out_amap = NetVLADLayer(num_clusters = 48)( cnn )
+    out, out_amap = NetVLADLayer(num_clusters = 16)( cnn )
     model = keras.models.Model( inputs=input_img, outputs=out )
 
     # Plot
@@ -141,7 +157,7 @@ if __name__ == '__main__':
     int_logr.add_file( 'model.json', model.to_json() )
 
 
-    initial_epoch = 400
+    initial_epoch = 0
     if initial_epoch > 0:
         # Load Previous Weights
         model.load_weights(  int_logr.dir() + '/core_model.%d.keras' %(initial_epoch) )
@@ -166,8 +182,8 @@ if __name__ == '__main__':
     #--------------------------------------------------------------------------
     # Compile
     #--------------------------------------------------------------------------
-    # sgdopt = keras.optimizers.Adadelta( )
-    sgdopt = keras.optimizers.Adam( lr=0.0001 )
+    sgdopt = keras.optimizers.Adadelta( )
+    # sgdopt = keras.optimizers.Adam( lr=0.0001 )
 
     # loss = triplet_loss2_maker(nP=nP, nN=nN, epsilon=0.3)
     # loss = allpair_hinge_loss_with_positive_set_deviation_maker(nP=nP, nN=nN, epsilon=0.3, opt_lambda=0.5 )
@@ -186,10 +202,14 @@ if __name__ == '__main__':
     saver_cb = CustomModelCallback( model, int_logr )
 
 
-    t_model.fit_generator( generator=WSequence(nP, nN, n_samples=(500,-1), initial_epoch=initial_epoch),
+    history = t_model.fit_generator( generator=WSequence(nP, nN, n_samples=(500,-1), initial_epoch=initial_epoch),
                             epochs=1200, verbose=1, initial_epoch=initial_epoch,
                             validation_data = WSequence(nP, nN, n_samples=(-1,500) ),
                             callbacks=[tb,saver_cb]
                          )
     print 'Save Final Model : ',  int_logr.dir() + '/core_model.keras'
     model.save( int_logr.dir() + '/core_model.keras' )
+
+    print 'Save History : ', int_logr.dir()+'/history.pickle'
+    with open( int_logr.dir()+'/history.pickle', 'wb' ) as handle:
+        pickle.dump(history, handle )
