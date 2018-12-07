@@ -18,6 +18,7 @@ import code
 import numpy as np
 import cv2
 import pickle
+import json
 
 
 # CustomNets
@@ -157,7 +158,7 @@ if __name__ == '__main__':
     int_logr.add_file( 'model.json', model.to_json() )
 
 
-    initial_epoch = 0
+    initial_epoch = 600
     if initial_epoch > 0:
         # Load Previous Weights
         model.load_weights(  int_logr.dir() + '/core_model.%d.keras' %(initial_epoch) )
@@ -183,11 +184,11 @@ if __name__ == '__main__':
     # Compile
     #--------------------------------------------------------------------------
     sgdopt = keras.optimizers.Adadelta( )
-    # sgdopt = keras.optimizers.Adam( lr=0.0001 )
+    # sgdopt = keras.optimizers.Adam(  )
 
     # loss = triplet_loss2_maker(nP=nP, nN=nN, epsilon=0.3)
     # loss = allpair_hinge_loss_with_positive_set_deviation_maker(nP=nP, nN=nN, epsilon=0.3, opt_lambda=0.5 )
-    loss = allpair_hinge_loss_maker( nP=nP, nN=nN, epsilon=0.3 )
+    loss = allpair_hinge_loss_maker( nP=nP, nN=nN, epsilon=0.25 )
 
     metrics = [ allpair_count_goodfit_maker( nP=nP, nN=nN, epsilon=0.3 ),
                 positive_set_deviation_maker(nP=nP, nN=nN)
@@ -200,15 +201,21 @@ if __name__ == '__main__':
     import tensorflow as tf
     tb = tf.keras.callbacks.TensorBoard( log_dir=int_logr.dir() )
     saver_cb = CustomModelCallback( model, int_logr )
+    reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.5, patience=25, verbose=1, min_lr=0.001)
 
 
     history = t_model.fit_generator( generator=WSequence(nP, nN, n_samples=(500,-1), initial_epoch=initial_epoch),
                             epochs=1200, verbose=1, initial_epoch=initial_epoch,
                             validation_data = WSequence(nP, nN, n_samples=(-1,500) ),
-                            callbacks=[tb,saver_cb]
+                            callbacks=[tb,saver_cb,reduce_lr]
                          )
     print 'Save Final Model : ',  int_logr.dir() + '/core_model.keras'
     model.save( int_logr.dir() + '/core_model.keras' )
+
+    print 'Save Json : ', int_logr.dir()+'/history.json'
+    with open( int_logr.dir()+'/history.json', 'w') as f:
+        json.dump(history.history, f)
+
 
     print 'Save History : ', int_logr.dir()+'/history.pickle'
     with open( int_logr.dir()+'/history.pickle', 'wb' ) as handle:

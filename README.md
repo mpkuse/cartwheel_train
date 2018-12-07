@@ -8,7 +8,7 @@ Manohar Kuse <mpkuse@connect.ust.hk> <br/>
 
 
 ## Required Packages
-Keras2
+[Keras2](https://keras.io) - Deep learning. 
 TensorFlow - Deep learning toolkit (v.1.08+)<br/>
 cv2 - OpenCV <br/>
 numpy - Python Math <br/>
@@ -66,6 +66,13 @@ Usage:
 ```
 python demo_compute_im_descriptor.py
 ```
+
+
+## Pretrained Model
+All my models to be released TODO
+- model-1
+- model-2
+
 
 ## References
 If you use my data/code or if you compare with my results, please do cite. Also cite
