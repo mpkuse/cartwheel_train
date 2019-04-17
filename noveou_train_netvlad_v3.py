@@ -30,7 +30,8 @@ from CustomNets import make_from_mobilenet, make_from_vgg16
 from CustomLosses import triplet_loss2_maker, allpair_hinge_loss_maker, allpair_count_goodfit_maker, positive_set_deviation_maker, allpair_hinge_loss_with_positive_set_deviation_maker
 
 from InteractiveLogger import InteractiveLogger
-
+import TerminalColors
+tcolor = TerminalColors.bcolors()
 
 # Data
 from TimeMachineRender import TimeMachineRender
@@ -38,6 +39,8 @@ from TimeMachineRender import TimeMachineRender
 from WalksRenderer import WalksRenderer
 from PittsburgRenderer import PittsburgRenderer
 
+
+# TODO : removal
 class WSequence(keras.utils.Sequence):
     """  This class depends on CustomNets.dataload_ for loading data. """
     def __init__(self, nP, nN, n_samples=(500,-1), initial_epoch=0 ):
@@ -52,7 +55,7 @@ class WSequence(keras.utils.Sequence):
         # self.n_samples = n_samples
 
 
-
+        # This will load the data
         self.D = dataload_( n_tokyoTimeMachine=self.n_samples_tokyo, n_Pitssburg=self.n_samples_pitts, nP=nP, nN=nN )
         print 'dataload_ returned len(self.D)=', len(self.D), 'self.D[0].shape=', self.D[0].shape
         self.y = np.zeros( len(self.D) )
@@ -89,6 +92,76 @@ class WSequence(keras.utils.Sequence):
             self.y = np.zeros( len(self.D) )
             # modify data
         self.epoch += 1
+
+
+# TODO This is a simpler implementation of WSequence. Eventually delete WSequence
+class PitsSequence(keras.utils.Sequence):
+    """  This class depends on CustomNets.dataload_ for loading data. """
+    def __init__(self, PTS_BASE, nP, nN, n_samples=500, initial_epoch=0 ):
+
+        # assert( type(n_samples) == type(()) )
+        self.n_samples_pitts = int(n_samples)
+        self.epoch = initial_epoch
+        self.batch_size = 4
+        self.refresh_data_after_n_epochs = 20
+        self.nP = nP
+        self.nN = nN
+        # self.n_samples = n_samples
+        print tcolor.OKGREEN, '-------------PitsSequence Config--------------', tcolor.ENDC
+        print 'n_samples  : ', self.n_samples_pitts
+        print 'batch_size : ', self.batch_size
+        print 'refresh_data_after_n_epochs : ', self.refresh_data_after_n_epochs
+        print tcolor.OKGREEN, '----------------------------------------------', tcolor.ENDC
+
+
+        # This will load the data
+        # self.D = dataload_( n_tokyoTimeMachine=self.n_samples_tokyo, n_Pitssburg=self.n_samples_pitts, nP=nP, nN=nN )
+        # print 'dataload_ returned len(self.D)=', len(self.D), 'self.D[0].shape=', self.D[0].shape
+        # self.y = np.zeros( len(self.D) )
+
+
+        # PTS_BASE = '/Bulk_Data/data_Akihiko_Torii/Pitssburg/'
+        self.pr = PittsburgRenderer( PTS_BASE )
+        self.D = self.pr.step_n_times(n_samples=500, nP=nP, nN=nN, resize=(320,240), return_gray=True, ENABLE_IMSHOW=True )
+        print 'len(D)=', len(self.D), '\tD[0].shape=', self.D[0].shape
+        self.y = np.zeros( len(self.D) )
+
+
+
+    def __len__(self):
+        return int(np.ceil(len(self.D) / float(self.batch_size)))
+
+    def __getitem__(self, idx):
+        batch_x = self.D[idx * self.batch_size:(idx + 1) * self.batch_size]
+        batch_y = self.y[idx * self.batch_size:(idx + 1) * self.batch_size]
+
+        # return np.array( batch_x ), np.array( batch_y )
+        return np.array( batch_x )*1./255. - 0.5, np.array( batch_y )
+       #TODO: Can return another number (sample_weight) for the sample. Which can be judge say by GMS matcher. If we see higher matches amongst +ve set ==> we have good positive samples,
+
+
+    def on_epoch_end(self):
+        N = self.refresh_data_after_n_epochs
+
+        if self.epoch % N == 0 and self.epoch > 0 :
+            print '[on_epoch_end] done %d epochs, so load new data\t' %(N), int_logr.dir()
+            # Sample Data
+            # self.D = dataload_( n_tokyoTimeMachine=self.n_samples_tokyo, n_Pitssburg=self.n_samples_pitts, nP=nP, nN=nN )
+
+            self.D = self.pr.step_n_times(n_samples=500, nP=self.nP, nN=self.nN, resize=(320,240), return_gray=True, ENABLE_IMSHOW=True )
+            print 'len(D)=', len(self.D), '\tD[0].shape=', self.D[0].shape
+
+
+            # if self.epoch > 400:
+            if self.epoch > 400 and self.n_samples_pitts<0:
+                # Data Augmentation after 400 epochs. Only do for Tokyo which are used for training. ie. dont augment Pitssburg.
+                self.D = do_typical_data_aug( self.D )
+
+            print 'dataload_ returned len(self.D)=', len(self.D), 'self.D[0].shape=', self.D[0].shape
+            self.y = np.zeros( len(self.D) )
+            # modify data
+        self.epoch += 1
+
 
 
 class CustomModelCallback(keras.callbacks.Callback):
@@ -130,10 +203,12 @@ if __name__ == '__main__':
     # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_quash_chnls_tripletloss2_K64/' )
 
     # int_logr = InteractiveLogger( './models.keras/vgg16/block5_pool_k32_allpairloss' )
-    int_logr = InteractiveLogger( './models.keras/vgg16/block5_pool_k32_tripletloss2' )
+    # int_logr = InteractiveLogger( './models.keras/vgg16/block5_pool_k32_tripletloss2' )
 
     # int_logr = InteractiveLogger( './models.keras/mobilenet_new/pw13_quash_chnls_k16_allpairloss' )
     # int_logr = InteractiveLogger( './models.keras/mobilenet_new/pw13_quash_chnls_k16_tripletloss2' )
+
+    int_logr = InteractiveLogger( './models.keras/tmp_staticnormalized_images/' )
 
 
     #--------------------------------------------------------------------------
@@ -161,7 +236,7 @@ if __name__ == '__main__':
     int_logr.add_file( 'model.json', model.to_json() )
 
 
-    initial_epoch = 400
+    initial_epoch = 0
     if initial_epoch > 0:
         # Load Previous Weights
         model.load_weights(  int_logr.dir() + '/core_model.%d.keras' %(initial_epoch) )
@@ -207,9 +282,9 @@ if __name__ == '__main__':
     reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.6, patience=75, verbose=1, min_lr=0.1)
 
 
-    history = t_model.fit_generator( generator=WSequence(nP, nN, n_samples=(500,-1), initial_epoch=initial_epoch),
+    history = t_model.fit_generator( generator=PitsSequence('/Bulk_Data/data_Akihiko_Torii/Pitssburg/' ,nP=nP, nN=nN, n_samples=500, initial_epoch=initial_epoch),
                             epochs=2200, verbose=1, initial_epoch=initial_epoch,
-                            validation_data = WSequence(nP, nN, n_samples=(-1,500) ),
+                            validation_data = PitsSequence('/Bulk_Data/data_Akihiko_Torii/Pitssburg_validation/', nP=nP, nN=nN, n_samples=500 ),
                             callbacks=[tb,saver_cb,reduce_lr]
                          )
     print 'Save Final Model : ',  int_logr.dir() + '/core_model.keras'

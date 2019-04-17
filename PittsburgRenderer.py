@@ -33,7 +33,7 @@ tcolor = TerminalColors.bcolors()
 
 class PittsburgRenderer:
     def __init__( self, PTS_BASE ):
-
+        print tcolor.OKGREEN, '--------------PittsburgRenderer::__init__--------------', tcolor.ENDC
         self.PTS_BASE = PTS_BASE
         print 'PTS_BASE:', PTS_BASE
 
@@ -46,8 +46,8 @@ class PittsburgRenderer:
             # if i==10:
                 # print 'ignore 5 because the folder is corrupt. this is manual intervention'
                 # continue
-            print 'Look for folder : ', folder_name, '\t',
             if os.path.isdir( folder_name ):
+                print 'Look for folder : ', folder_name, '\t',
                 print 'exists'
 
 
@@ -68,14 +68,15 @@ class PittsburgRenderer:
                 self.folder_list.append(i)
 
             else:
-                print 'does not exist, break'
-                break;
+                pass
+                #print 'does not exist, break'
+                #break;
             # print 'Check if folder \'%s\' exist' %(folder_name)
 
         if len(self.folder_list) == 0:
             print tcolor.FAIL, 'Doesnot look like streetview pitsburg db', tcolor.ENDC
             quit()
-
+        print tcolor.OKGREEN, 'END--------------PittsburgRenderer::__init__--------------', tcolor.ENDC
 
     def _tuple_to_filename( self, t ):
         filename = '%s/%03d/%03d%03d_pitch%d_yaw%d.jpg' %(self.PTS_BASE, t[0], t[0], t[1], t[2], t[3])
@@ -236,21 +237,22 @@ class PittsburgRenderer:
         sim_tup = self._similar_to( nP, q_tup)
         dif_tup = self._different_than( nN, q_tup )
 
-        print 'q_tup=  ' , q_tup
-        print 'sim_tup=' , sim_tup
-        print 'dif_tup=' , dif_tup
+        # print 'q_tup=  ' , q_tup
+        # print 'sim_tup=' , sim_tup
+        # print 'dif_tup=' , dif_tup
 
         q_im = self._get_images( [q_tup], apply_distortions=apply_distortions, return_gray=return_gray, resize=resize )
         sim_im = self._get_images( sim_tup, apply_distortions=apply_distortions, return_gray=return_gray, resize=resize )
         dif_im = self._get_images( dif_tup, apply_distortions=apply_distortions, return_gray=return_gray, resize=resize )
         # code.interact( local=locals() )
 
-        print 'q_im.shape=  ' , q_im.shape
-        print 'sim_im.shape=' , sim_im.shape
-        print 'dif_im.shape=' , dif_im.shape
+        # print 'q_im.shape=  ' , q_im.shape
+        # print 'sim_im.shape=' , sim_im.shape
+        # print 'dif_im.shape=' , dif_im.shape
 
 
         if ENABLE_IMSHOW:
+            # rgb <---> bgr
             # cv2.imshow( 'q_im', np.concatenate( q_im, axis=1)[:,:,::-1] )
             # cv2.imshow( 'sims_im', np.concatenate( sim_im, axis=1)[:,:,::-1] )
             # cv2.imshow( 'diffs_im', np.concatenate( dif_im, axis=1)[:,:,::-1] )
@@ -260,20 +262,46 @@ class PittsburgRenderer:
             cv2.imshow( 'q_im_show', self._add_image_caption( q_im[0].astype('uint8'), xstr ) )
 
             # put caption for sim_im
-            
+            sim_im_show = []
+            for z in range( len(sim_im) ):
+                if z == 0:
+                    xstr = 'folderID=%d;imageID=%d;pitchID=%d;yawID=%d' %( (sim_tup[z])[0], (sim_tup[z])[1], (sim_tup[z])[2], (sim_tup[z])[3] )
+                else:
+                    xstr = '  %d;  %d;  %d;  %d' %( (sim_tup[z])[0], (sim_tup[z])[1], (sim_tup[z])[2], (sim_tup[z])[3] )
+                sim_im_show.append( self._add_image_caption( sim_im[z].astype('uint8'), xstr ) )
+            cv2.imshow( 'sim_im_show', np.concatenate( sim_im_show, axis=1)  )
 
 
             # put caption for dif_im
+            diff_im_show = []
+            for z in range( len(dif_im) ):
+                if z == 0:
+                    xstr = 'folderID=%d;imageID=%d;pitchID=%d;yawID=%d' %( (dif_tup[z])[0], (dif_tup[z])[1], (dif_tup[z])[2], (dif_tup[z])[3] )
+                else:
+                    xstr = '  %d;  %d;  %d;  %d' %( (dif_tup[z])[0], (dif_tup[z])[1], (dif_tup[z])[2], (dif_tup[z])[3] )
+                diff_im_show.append( self._add_image_caption( dif_im[z].astype('uint8'), xstr ) )
+            cv2.imshow( 'diff_im_show', np.concatenate( diff_im_show, axis=1)  )
 
 
-            cv2.imshow( 'q_im', np.concatenate( q_im, axis=1)       )
-            cv2.imshow( 'sims_im', np.concatenate( sim_im, axis=1)  )
-            cv2.imshow( 'diffs_im', np.concatenate( dif_im, axis=1) )
+
+            # cv2.imshow( 'q_im', np.concatenate( q_im, axis=1)       )
+            # cv2.imshow( 'sims_im', np.concatenate( sim_im, axis=1)  )
+            # cv2.imshow( 'diffs_im', np.concatenate( dif_im, axis=1) )
             cv2.waitKey(5)
 
 
 
         return np.concatenate( (q_im, sim_im, dif_im), axis=0 ).astype('float32'), np.zeros( (1+nP+nN,4) )
+
+    def step_n_times( self, n_samples, nP, nN, return_gray=False, resize=(320,240), ENABLE_IMSHOW=False  ):
+        D=[]
+        for s in range(n_samples):
+            a,_ = self.step(nP=nP, nN=nN, return_gray=return_gray, resize=(320,240), apply_distortions=False, ENABLE_IMSHOW=ENABLE_IMSHOW )
+            if s%100 == 0:
+                print 'get a sample from PTS_BASE=%s #%d of %d\t' %(self.PTS_BASE, s, n_samples),
+                print a.shape
+            D.append( a )
+        return D
 
     def preload_step( self,  nP, nN, apply_distortions=True, return_gray=False, ENABLE_IMSHOW=False ):
         q_tup = self._query()

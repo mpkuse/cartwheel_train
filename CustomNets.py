@@ -86,13 +86,13 @@ def print_flops_report(model):
 #--------------------------------------------------------------------------------
 # Data
 #--------------------------------------------------------------------------------
-
+# TODO : removal 
 def dataload_( n_tokyoTimeMachine, n_Pitssburg, nP, nN ):
     D = []
     if n_tokyoTimeMachine > 0 :
         TTM_BASE = '/Bulk_Data/data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
         pr = TimeMachineRender( TTM_BASE )
-        print 'nP=', nP, '\tnN=', nN
+        print 'tokyoTimeMachine:: nP=', nP, '\tnN=', nN
         for s in range(n_tokyoTimeMachine):
             a,_ = pr.step(nP=nP, nN=nN, return_gray=False, resize=(320,240), apply_distortions=False, ENABLE_IMSHOW=False)
             if s%100 == 0:
@@ -103,7 +103,7 @@ def dataload_( n_tokyoTimeMachine, n_Pitssburg, nP, nN ):
     if n_Pitssburg > 0 :
         PTS_BASE = '/Bulk_Data/data_Akihiko_Torii/Pitssburg/'
         pr = PittsburgRenderer( PTS_BASE )
-        print 'nP=', nP, '\tnN=', nN
+        print 'Pitssburg nP=', nP, '\tnN=', nN
         for s in range(n_Pitssburg):
             a,_ = pr.step(nP=nP, nN=nN, return_gray=False, resize=(240,320), apply_distortions=False, ENABLE_IMSHOW=False)
             if s %100 == 0:

@@ -39,15 +39,27 @@ def demo_pittsburg():
     so beware.
 
     """
-    PTS_BASE = '/Bulk_Data/data_Akihiko_Torii/Pitssburg/'
+    # PTS_BASE = '/Bulk_Data/data_Akihiko_Torii/Pitssburg/'
+    PTS_BASE = '/Bulk_Data/data_Akihiko_Torii/Pitssburg_validation/'
     pr = PittsburgRenderer( PTS_BASE )
     for i in range(20):
         a,b = pr.step(nP=10, nN=10, ENABLE_IMSHOW=True, return_gray=False, resize=(160, 120))
-        # print a.shape
-        # print b.shape
+        print a.shape
+        print b.shape
         # code.interact(local=locals() )
         cv2.waitKey(0)
     quit()
+
+
+def demo_pittsburg_n_samples():
+    """ for info see doc for demo_pittsburg() """
+    # PTS_BASE = '/Bulk_Data/data_Akihiko_Torii/Pitssburg/'
+    PTS_BASE = '/Bulk_Data/data_Akihiko_Torii/Pitssburg_validation/'
+    pr = PittsburgRenderer( PTS_BASE )
+
+    D = pr.step_n_times(n_samples=50, nP=10, nN=10, resize=(320,240), return_gray=True, ENABLE_IMSHOW=True )
+    print 'len(D)=', len(D), '\tD[0].shape=', D[0].shape
+
 
 def demo_walks():
     """ Although this works, but using this with training is currently
@@ -95,7 +107,8 @@ def demo_panda():
     for i in range(20):
         a,b = app.step(16)
 
-demo_pittsburg()
+# demo_pittsburg()
+demo_pittsburg_n_samples()
 # demo_walks()
 # demo_tokyotm()
 # demo_panda()
