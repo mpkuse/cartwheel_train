@@ -102,7 +102,7 @@ class CustomModelCallback(keras.callbacks.Callback):
             print 'Save Intermediate Model : ', fname
             self.m_model.save( fname )
 
-        if epoch%20 == 0:
+        if epoch%5 == 0:
             print 'm_int_logr=', self.m_int_logr.dir()
 
 
@@ -129,8 +129,11 @@ if __name__ == '__main__':
     # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_quash_chnls_allpairloss/' )
     # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_quash_chnls_tripletloss2_K64/' )
 
-    # int_logr = InteractiveLogger( './models.keras/vgg16/block5_pool_k48_tripletloss2' )
-    int_logr = InteractiveLogger( './models.keras/vgg16_new/block5_pool_k16_allpairloss' )
+    # int_logr = InteractiveLogger( './models.keras/vgg16/block5_pool_k32_allpairloss' )
+    int_logr = InteractiveLogger( './models.keras/vgg16/block5_pool_k32_tripletloss2' )
+
+    # int_logr = InteractiveLogger( './models.keras/mobilenet_new/pw13_quash_chnls_k16_allpairloss' )
+    # int_logr = InteractiveLogger( './models.keras/mobilenet_new/pw13_quash_chnls_k16_tripletloss2' )
 
 
     #--------------------------------------------------------------------------
@@ -138,18 +141,18 @@ if __name__ == '__main__':
     #--------------------------------------------------------------------------
     # Build
     input_img = keras.layers.Input( shape=(image_nrows, image_ncols, image_nchnl ) )
-    # cnn = make_from_mobilenet( input_img )
+    # cnn = make_from_mobilenet( input_img, layer_name='conv_pw_13_relu', kernel_regularizer=None )
     cnn = make_from_vgg16( input_img, layer_name='block5_pool' )
     # Reduce nChannels of the output.
     # @ Downsample (Optional)
     if False: #Downsample last layer (Reduce nChannels of the output.)
         cnn_dwn = keras.layers.Conv2D( 256, (1,1), padding='same', activation='relu' )( cnn )
         cnn_dwn = keras.layers.normalization.BatchNormalization()( cnn_dwn )
-        cnn_dwn = keras.layers.Conv2D( 32, (1,1), padding='same', activation='relu' )( cnn_dwn )
+        cnn_dwn = keras.layers.Conv2D( 64, (1,1), padding='same', activation='relu' )( cnn_dwn )
         cnn_dwn = keras.layers.normalization.BatchNormalization()( cnn_dwn )
         cnn = cnn_dwn
 
-    out, out_amap = NetVLADLayer(num_clusters = 16)( cnn )
+    out, out_amap = NetVLADLayer(num_clusters = 32)( cnn )
     model = keras.models.Model( inputs=input_img, outputs=out )
 
     # Plot
@@ -158,7 +161,7 @@ if __name__ == '__main__':
     int_logr.add_file( 'model.json', model.to_json() )
 
 
-    initial_epoch = 600
+    initial_epoch = 400
     if initial_epoch > 0:
         # Load Previous Weights
         model.load_weights(  int_logr.dir() + '/core_model.%d.keras' %(initial_epoch) )
@@ -186,9 +189,9 @@ if __name__ == '__main__':
     sgdopt = keras.optimizers.Adadelta( )
     # sgdopt = keras.optimizers.Adam(  )
 
-    # loss = triplet_loss2_maker(nP=nP, nN=nN, epsilon=0.3)
+    loss = triplet_loss2_maker(nP=nP, nN=nN, epsilon=0.3)
     # loss = allpair_hinge_loss_with_positive_set_deviation_maker(nP=nP, nN=nN, epsilon=0.3, opt_lambda=0.5 )
-    loss = allpair_hinge_loss_maker( nP=nP, nN=nN, epsilon=0.25 )
+    # loss = allpair_hinge_loss_maker( nP=nP, nN=nN, epsilon=0.3 )
 
     metrics = [ allpair_count_goodfit_maker( nP=nP, nN=nN, epsilon=0.3 ),
                 positive_set_deviation_maker(nP=nP, nN=nN)
@@ -201,22 +204,22 @@ if __name__ == '__main__':
     import tensorflow as tf
     tb = tf.keras.callbacks.TensorBoard( log_dir=int_logr.dir() )
     saver_cb = CustomModelCallback( model, int_logr )
-    reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.5, patience=25, verbose=1, min_lr=0.001)
+    reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.6, patience=75, verbose=1, min_lr=0.1)
 
 
     history = t_model.fit_generator( generator=WSequence(nP, nN, n_samples=(500,-1), initial_epoch=initial_epoch),
-                            epochs=1200, verbose=1, initial_epoch=initial_epoch,
+                            epochs=2200, verbose=1, initial_epoch=initial_epoch,
                             validation_data = WSequence(nP, nN, n_samples=(-1,500) ),
                             callbacks=[tb,saver_cb,reduce_lr]
                          )
     print 'Save Final Model : ',  int_logr.dir() + '/core_model.keras'
     model.save( int_logr.dir() + '/core_model.keras' )
 
-    print 'Save Json : ', int_logr.dir()+'/history.json'
-    with open( int_logr.dir()+'/history.json', 'w') as f:
-        json.dump(history.history, f)
-
-
-    print 'Save History : ', int_logr.dir()+'/history.pickle'
-    with open( int_logr.dir()+'/history.pickle', 'wb' ) as handle:
-        pickle.dump(history, handle )
+    # print 'Save Json : ', int_logr.dir()+'/history.json'
+    # with open( int_logr.dir()+'/history.json', 'w') as f:
+    #     json.dump(history.history, f)
+    #
+    #
+    # print 'Save History : ', int_logr.dir()+'/history.pickle'
+    # with open( int_logr.dir()+'/history.pickle', 'wb' ) as handle:
+    #     pickle.dump(history, handle )

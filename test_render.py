@@ -26,7 +26,7 @@ import time
 import code
 
 from TimeMachineRender import TimeMachineRender
-from PandaRender import NetVLADRenderer
+#from PandaRender import NetVLADRenderer
 from WalksRenderer import WalksRenderer
 from WalksRenderer import WalksRendererOnline
 from PittsburgRenderer import PittsburgRenderer
@@ -39,12 +39,13 @@ def demo_pittsburg():
     so beware.
 
     """
-    PTS_BASE = 'data_Akihiko_Torii/Pitssburg/'
+    PTS_BASE = '/Bulk_Data/data_Akihiko_Torii/Pitssburg/'
     pr = PittsburgRenderer( PTS_BASE )
     for i in range(20):
-        a,b = pr.step(nP=10, nN=10, ENABLE_IMSHOW=True)
-        print a.shape
-        print b.shape
+        a,b = pr.step(nP=10, nN=10, ENABLE_IMSHOW=True, return_gray=False, resize=(160, 120))
+        # print a.shape
+        # print b.shape
+        # code.interact(local=locals() )
         cv2.waitKey(0)
     quit()
 
@@ -75,12 +76,13 @@ def demo_tokyotm():
     """ Needs TokyoTM dataset.
         Request here: http://www.ok.ctrl.titech.ac.jp/~torii/project/247/
     """
-    TTM_BASE = 'data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
+    TTM_BASE = '/Bulk_Data/data_Akihiko_Torii/Tokyo_TM/tokyoTimeMachine/' #Path of Tokyo_TM
     tm = TimeMachineRender( TTM_BASE )
     pyDB = tm.pyDB
     # tm.debug_display_image_samples()
     for i in range(100):
         a,b = tm.step(5,5, return_gray=True, ENABLE_IMSHOW=True)
+        print 'a.shape=', a.shape, '\tb.shape=', b.shape
         cv2.waitKey(0)
 
 def demo_panda():
@@ -93,12 +95,12 @@ def demo_panda():
     for i in range(20):
         a,b = app.step(16)
 
-# demo_pittsburg()
+demo_pittsburg()
 # demo_walks()
 # demo_tokyotm()
 # demo_panda()
 
 
-WALKS_PATH = '/media/mpkuse/Bulk_Data/keezi_walks/'
-tm = WalksRendererOnline( WALKS_PATH )
-tm.proc()
+# WALKS_PATH = '/media/mpkuse/Bulk_Data/keezi_walks/'
+# tm = WalksRendererOnline( WALKS_PATH )
+# tm.proc()

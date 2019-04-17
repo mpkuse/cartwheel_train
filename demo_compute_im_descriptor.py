@@ -19,13 +19,20 @@ from CustomNets import print_model_memory_usage, print_flops_report
 base_path = './models.keras/mobilenet_conv7_allpairloss/'
 
 def do_demo():
+    from keras.backend.tensorflow_backend import set_session
+    import tensorflow as tf
+    config = tf.ConfigProto()
+    config.gpu_options.per_process_gpu_memory_fraction = 0.1
+    # config.gpu_options.visible_device_list = "0"
+    set_session(tf.Session(config=config))
+
     im_rows = 240
     im_cols = 320
     im_chnls = 3
 
-    im_rows = 480
-    im_cols = 640
-    im_chnls = 3
+    # im_rows = 480
+    # im_cols = 640
+    # im_chnls = 3
 
     ##------ Create Model (from json file)
     # [[[[[Option-A]]]]] (load from json) this doesn't work. seem like i need to implement get_config in my custom layer which I am not able to do correctly, TODO fix in the future
@@ -48,10 +55,10 @@ def do_demo():
 
     # @ CNN
     # cnn = make_from_vgg16( input_img, weights=None, layer_name='block5_pool' )
-    cnn = make_from_mobilenet( input_img, weights=None, layer_name='conv_pw_13_relu' )
+    cnn = make_from_mobilenet( input_img, weights=None, layer_name='conv_pw_7_relu' )
 
     # @ Downsample (Optional)
-    if False: #Downsample last layer (Reduce nChannels of the output.)
+    if True: #Downsample last layer (Reduce nChannels of the output.)
         cnn_dwn = keras.layers.Conv2D( 256, (1,1), padding='same', activation='relu' )( cnn )
         cnn_dwn = keras.layers.normalization.BatchNormalization()( cnn_dwn )
         cnn_dwn = keras.layers.Conv2D( 32, (1,1), padding='same', activation='relu' )( cnn_dwn )
@@ -59,13 +66,15 @@ def do_demo():
         cnn = cnn_dwn
 
     # @ NetVLADLayer
-    out, out_amap = NetVLADLayer(num_clusters = 64)( cnn )
+    out, out_amap = NetVLADLayer(num_clusters = 16)( cnn )
     model = keras.models.Model( inputs=input_img, outputs=out )
 
 
     ##---------- Print Model Info, Memory Usage, FLOPS
-    if False: # Set this to `True` to display FLOPs, memory etc .
+    if True: # Set this to `True` to display FLOPs, memory etc .
         model.summary()
+        keras.utils.plot_model( model, to_file='./demo_.png', show_shapes=True )
+
         print_flops_report( model )
         print_model_memory_usage( 1, model )
         print 'input_shape=%s\toutput_shape=%s' %( model.input_shape, model.output_shape )

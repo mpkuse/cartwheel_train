@@ -26,6 +26,7 @@ import glob
 import code
 import copy
 import random
+import glob
 #
 import TerminalColors
 tcolor = TerminalColors.bcolors()
@@ -36,24 +37,45 @@ class PittsburgRenderer:
         self.PTS_BASE = PTS_BASE
         print 'PTS_BASE:', PTS_BASE
 
-        self.folder_list = None
+        self.folder_list = []
 
         # See if this looks like the correct folder,
         # A: if folders by name 000, 001, 002, ..., 010 exist
-        flag = True
-        for i in range(11):
+        for i in range(100):
             folder_name = '%s/%03d' %(self.PTS_BASE, i)
+            # if i==10:
+                # print 'ignore 5 because the folder is corrupt. this is manual intervention'
+                # continue
+            print 'Look for folder : ', folder_name, '\t',
             if os.path.isdir( folder_name ):
-                # print 'TRUE',
-                pass
+                print 'exists'
+
+
+                # look inside this folder to see how many images
+                if True:
+                    nk = 0
+                    for k in range(1000):
+                        # print 'check : ' , folder_name+'/%3d%3d_pitch1_yaw1.jpg' %(i,k)
+                        k_decision = os.path.isfile( folder_name+'/%03d%03d_pitch1_yaw1.jpg' %(i,k) )
+                        if k_decision:
+                            nk+=1
+
+                    print '\ttotal_images=', len(glob.glob( folder_name+'/*.jpg' )),
+                    print 'total_uniq_locations=', nk
+
+                if nk < 999:
+                    continue
+                self.folder_list.append(i)
+
             else:
-                # print 'FALSE'
-                flag = False
+                print 'does not exist, break'
+                break;
             # print 'Check if folder \'%s\' exist' %(folder_name)
 
-        if flag == False:
+        if len(self.folder_list) == 0:
             print tcolor.FAIL, 'Doesnot look like streetview pitsburg db', tcolor.ENDC
             quit()
+
 
     def _tuple_to_filename( self, t ):
         filename = '%s/%03d/%03d%03d_pitch%d_yaw%d.jpg' %(self.PTS_BASE, t[0], t[0], t[1], t[2], t[3])
@@ -108,7 +130,8 @@ class PittsburgRenderer:
 
         #only change pitch and yaw, ie. t[2], t[3]
         new_pitch = np.random.randint( 2, size=n ) + 1
-        new_yaw = np.random.randn(n)*1. + t[3]#np.random.randn() * 8 + t[3]
+        new_yaw = np.random.randn(n)*1. + t[3]
+        # new_yaw = int( np.random.randn(n) * 8 + t[3] )
 
 
 
@@ -132,7 +155,7 @@ class PittsburgRenderer:
     def _get_images( self, L, apply_distortions, return_gray, resize ):
         A = []
         for l in L:
-            # print l
+            # print 'l=',l
             fname = self._tuple_to_filename( l )
             # print 'Load Image', fname
             try:
@@ -140,38 +163,40 @@ class PittsburgRenderer:
                     IM = cv2.imread( fname )
                 else:
                     assert(len(resize) == 2)
-                    IM = cv2.resize( cv2.imread( fname ) , (320,240)  )
+                    IM = cv2.resize( cv2.imread( fname ) , resize  )
             except:
-                IM = np.zeros( (240, 320, 3) ).astype('uint8')
+                IM = np.zeros( (resize[0], resize[1], 3) ).astype('uint8')
 
+            # print 'loaded IM.shape=', IM.shape
             # Apply Distortions
             # Random Distortion
-            if apply_distortions == True and np.random.rand() > 0.5: #apply random distortions to only 50% of samples
-                #TODO: Make use of RandomDistortions class (end of this file) for complicated Distortions, for now quick and dirty way
-                # # Planar rotate IM, this rotation gives black-borders, need to crop
-                # rows,cols, _ = IM.shape
-                # irot = np.random.uniform(-180,180 )#np.random.randn() * 25.
-                # M = cv2.getRotationMatrix2D((cols*.5,rows*.5),irot,1.)
-                # dst = cv2.warpAffine(IM,M,(cols,rows))
-                # IM = dst
-
-                # Planar rotation, cropped. adopted from `test_rot-test.py`
-                image_height, image_width = IM.shape[0:2]
-                image_orig = np.copy(IM)
-                irot = np.random.uniform(-180,180 )#np.random.randn() * 25.
-                image_rotated = rotate_image(IM, irot)
-                image_rotated_cropped = crop_around_center(
-                    image_rotated,
-                    *largest_rotated_rect(
-                        image_width,
-                        image_height,
-                        math.radians(irot)
-                    ))
-                IM = cv2.resize( image_rotated_cropped, (320,240) )
-
-            if return_gray == True:
-                IM_gray = cv2.cvtColor( IM, cv2.COLOR_BGR2GRAY )
-                IM = np.expand_dims( IM_gray, axis=2 )
+            #TODO: Removal. No need to apply distortion as this is taken care of by img_aug package.
+            # if apply_distortions == True and np.random.rand() > 0.5: #apply random distortions to only 50% of samples
+            #     #TODO: Make use of RandomDistortions class (end of this file) for complicated Distortions, for now quick and dirty way
+            #     # # Planar rotate IM, this rotation gives black-borders, need to crop
+            #     # rows,cols, _ = IM.shape
+            #     # irot = np.random.uniform(-180,180 )#np.random.randn() * 25.
+            #     # M = cv2.getRotationMatrix2D((cols*.5,rows*.5),irot,1.)
+            #     # dst = cv2.warpAffine(IM,M,(cols,rows))
+            #     # IM = dst
+            #
+            #     # Planar rotation, cropped. adopted from `test_rot-test.py`
+            #     image_height, image_width = IM.shape[0:2]
+            #     image_orig = np.copy(IM)
+            #     irot = np.random.uniform(-180,180 )#np.random.randn() * 25.
+            #     image_rotated = rotate_image(IM, irot)
+            #     image_rotated_cropped = crop_around_center(
+            #         image_rotated,
+            #         *largest_rotated_rect(
+            #             image_width,
+            #             image_height,
+            #             math.radians(irot)
+            #         ))
+            #     IM = cv2.resize( image_rotated_cropped, (320,240) )
+            #
+            # if return_gray == True:
+            #     IM_gray = cv2.cvtColor( IM, cv2.COLOR_BGR2GRAY )
+            #     IM = np.expand_dims( IM_gray, axis=2 )
 
 
 
@@ -181,20 +206,69 @@ class PittsburgRenderer:
 
         return np.array(A)
 
-    def step( self, nP, nN, apply_distortions=True, return_gray=False, resize=None, ENABLE_IMSHOW=False ):
+    def _add_image_caption( self, im, txt ) :
+
+        caption_im_width = 30*len( str(txt).split( ';' ) )
+
+        if len(im.shape) == 3:
+            zer = np.zeros( [caption_im_width, im.shape[1], im.shape[2]], dtype='uint8' )
+        else:
+            if len(im.shape) == 2:
+                zer = np.zeros( [caption_im_width, im.shape[1]], dtype='uint8' )
+            else:
+                assert( False )
+
+
+        for e, tx in enumerate( str(txt).split( ';' ) ):
+            zer = cv2.putText(zer, str(tx), (3,20+30*e), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255,255,255) )
+        return np.concatenate( [im, zer] )
+
+
+    def step( self, nP, nN, apply_distortions=False, return_gray=False, resize=None, ENABLE_IMSHOW=False ):
+        """
+        Will return 2 matrix.
+        a: size=(1+nP+nN)xresize[0]xresize[1]x3. example. (1+10+5)x320x240x3
+        b: size=(1+nP+nN)x4. These are just zeros here, they are here for compatibility. but it serves no purpose currently.
+        """
+
         # return self.preload_step( nP, nN, apply_distortions, return_gray, ENABLE_IMSHOW )
         q_tup = self._query()
         sim_tup = self._similar_to( nP, q_tup)
         dif_tup = self._different_than( nN, q_tup )
 
+        print 'q_tup=  ' , q_tup
+        print 'sim_tup=' , sim_tup
+        print 'dif_tup=' , dif_tup
+
         q_im = self._get_images( [q_tup], apply_distortions=apply_distortions, return_gray=return_gray, resize=resize )
         sim_im = self._get_images( sim_tup, apply_distortions=apply_distortions, return_gray=return_gray, resize=resize )
         dif_im = self._get_images( dif_tup, apply_distortions=apply_distortions, return_gray=return_gray, resize=resize )
+        # code.interact( local=locals() )
+
+        print 'q_im.shape=  ' , q_im.shape
+        print 'sim_im.shape=' , sim_im.shape
+        print 'dif_im.shape=' , dif_im.shape
+
 
         if ENABLE_IMSHOW:
-            cv2.imshow( 'q_im', np.concatenate( q_im, axis=1)[:,:,::-1] )
-            cv2.imshow( 'sims_im', np.concatenate( sim_im, axis=1)[:,:,::-1] )
-            cv2.imshow( 'diffs_im', np.concatenate( dif_im, axis=1)[:,:,::-1] )
+            # cv2.imshow( 'q_im', np.concatenate( q_im, axis=1)[:,:,::-1] )
+            # cv2.imshow( 'sims_im', np.concatenate( sim_im, axis=1)[:,:,::-1] )
+            # cv2.imshow( 'diffs_im', np.concatenate( dif_im, axis=1)[:,:,::-1] )
+
+            # Put caption for q_im
+            xstr = 'folderID=%d;imageID=%d;pitchID=%d;yawID=%d' %(q_tup[0], q_tup[1], q_tup[2], q_tup[3] )
+            cv2.imshow( 'q_im_show', self._add_image_caption( q_im[0].astype('uint8'), xstr ) )
+
+            # put caption for sim_im
+            
+
+
+            # put caption for dif_im
+
+
+            cv2.imshow( 'q_im', np.concatenate( q_im, axis=1)       )
+            cv2.imshow( 'sims_im', np.concatenate( sim_im, axis=1)  )
+            cv2.imshow( 'diffs_im', np.concatenate( dif_im, axis=1) )
             cv2.waitKey(5)
 
 
