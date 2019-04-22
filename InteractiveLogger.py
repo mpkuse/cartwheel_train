@@ -1,6 +1,6 @@
 import editor # Needed for InteractiveLogger
 import os
-
+import json
 
 class InteractiveLogger:
     def __init__(self, LOG_DIR ):
@@ -29,6 +29,12 @@ class InteractiveLogger:
         text_file = open(self.LOG_DIR+"/"+fname, "w")
         text_file.write(txt)
         text_file.close()
+
+    def save_model_as_json( self, fname, model ):
+        print '[InteractiveLogger] Write file : ', self.LOG_DIR+"/"+fname
+        with open(self.LOG_DIR+"/"+fname, 'w') as outfile:
+            json.dump(model.to_json(), outfile, indent=4 )
+
 
 
     def fire_editor( self ):

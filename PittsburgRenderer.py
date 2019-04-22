@@ -168,36 +168,10 @@ class PittsburgRenderer:
             except:
                 IM = np.zeros( (resize[0], resize[1], 3) ).astype('uint8')
 
-            # print 'loaded IM.shape=', IM.shape
-            # Apply Distortions
-            # Random Distortion
-            #TODO: Removal. No need to apply distortion as this is taken care of by img_aug package.
-            # if apply_distortions == True and np.random.rand() > 0.5: #apply random distortions to only 50% of samples
-            #     #TODO: Make use of RandomDistortions class (end of this file) for complicated Distortions, for now quick and dirty way
-            #     # # Planar rotate IM, this rotation gives black-borders, need to crop
-            #     # rows,cols, _ = IM.shape
-            #     # irot = np.random.uniform(-180,180 )#np.random.randn() * 25.
-            #     # M = cv2.getRotationMatrix2D((cols*.5,rows*.5),irot,1.)
-            #     # dst = cv2.warpAffine(IM,M,(cols,rows))
-            #     # IM = dst
-            #
-            #     # Planar rotation, cropped. adopted from `test_rot-test.py`
-            #     image_height, image_width = IM.shape[0:2]
-            #     image_orig = np.copy(IM)
-            #     irot = np.random.uniform(-180,180 )#np.random.randn() * 25.
-            #     image_rotated = rotate_image(IM, irot)
-            #     image_rotated_cropped = crop_around_center(
-            #         image_rotated,
-            #         *largest_rotated_rect(
-            #             image_width,
-            #             image_height,
-            #             math.radians(irot)
-            #         ))
-            #     IM = cv2.resize( image_rotated_cropped, (320,240) )
-            #
-            # if return_gray == True:
-            #     IM_gray = cv2.cvtColor( IM, cv2.COLOR_BGR2GRAY )
-            #     IM = np.expand_dims( IM_gray, axis=2 )
+
+            if return_gray == True:
+                IM_gray = cv2.cvtColor( IM, cv2.COLOR_BGR2GRAY )
+                IM = np.expand_dims( IM_gray, axis=2 )
 
 
 
@@ -294,13 +268,19 @@ class PittsburgRenderer:
         return np.concatenate( (q_im, sim_im, dif_im), axis=0 ).astype('float32'), np.zeros( (1+nP+nN,4) )
 
     def step_n_times( self, n_samples, nP, nN, return_gray=False, resize=(320,240), ENABLE_IMSHOW=False  ):
+        print tcolor.OKGREEN, 'in fucntion PittsburgRenderer::step_n_times()', tcolor.ENDC
         D=[]
         for s in range(n_samples):
             a,_ = self.step(nP=nP, nN=nN, return_gray=return_gray, resize=(320,240), apply_distortions=False, ENABLE_IMSHOW=ENABLE_IMSHOW )
             if s%100 == 0:
-                print 'get a sample from PTS_BASE=%s #%d of %d\t' %(self.PTS_BASE, s, n_samples),
-                print a.shape
+                print tcolor.OKBLUE, 'get a sample from PTS_BASE=%s #%d of %d\t' %(self.PTS_BASE, s, n_samples),
+                print a.shape, tcolor.ENDC
+
             D.append( a )
+        if ENABLE_IMSHOW==True:
+            print 'cv2.destroyAllWindows()'
+            cv2.destroyAllWindows()
+
         return D
 
     def preload_step( self,  nP, nN, apply_distortions=True, return_gray=False, ENABLE_IMSHOW=False ):

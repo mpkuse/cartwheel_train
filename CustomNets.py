@@ -86,7 +86,7 @@ def print_flops_report(model):
 #--------------------------------------------------------------------------------
 # Data
 #--------------------------------------------------------------------------------
-# TODO : removal 
+# TODO : removal
 def dataload_( n_tokyoTimeMachine, n_Pitssburg, nP, nN ):
     D = []
     if n_tokyoTimeMachine > 0 :
@@ -398,7 +398,7 @@ class NetVLADLayer( Layer ):
         s = K.conv2d( x, self.kernel, padding='same' ) + self.bias
         a = K.softmax( s )
         self.amap = K.argmax( a, -1 )
-        print 'amap.shape', self.amap.shape
+        # print 'amap.shape', self.amap.shape
 
         # Dims used hereafter: batch, H, W, desc_coeff, cluster
         a = K.expand_dims( a, -2 )
@@ -420,20 +420,23 @@ class NetVLADLayer( Layer ):
         v = K.batch_flatten( v )
         v = K.l2_normalize( v, axis=-1 )
 
-        return [v, self.amap]
+        # return [v, self.amap]
+        return v
 
     def compute_output_shape( self, input_shape ):
-        # return (input_shape[0], self.v.shape[-1].value )
-        # return [(input_shape[0], self.K*self.D ), (input_shape[0], self.amap.shape[1].value, self.amap.shape[2].value) ]
-        return [(input_shape[0], self.K*self.D ), (input_shape[0], input_shape[1], input_shape[2]) ]
+
+        # return [(input_shape[0], self.K*self.D ), (input_shape[0], input_shape[1], input_shape[2]) ]
+        return (input_shape[0], self.K*self.D )
 
     def get_config( self ):
         pass
-        # import code
-        # code.interact( local=locals() )
+        # base_config = super(NetVLADLayer, self).get_config()
+        # return dict(list(base_config.items()))
+
+        # As suggested by: https://github.com/keras-team/keras/issues/4871#issuecomment-269731817
+        config = {'num_clusters': self.num_clusters}
         base_config = super(NetVLADLayer, self).get_config()
-        # return dict(list(base_config.items()) + list(config.items()))
-        return dict(list(base_config.items()))
+        return dict(list(base_config.items()) + list(config.items()))
 
 
 #--------------------------------------------------------------------------------
