@@ -127,12 +127,13 @@ class PitsSequence(keras.utils.Sequence):
 
 
 class CustomModelCallback(keras.callbacks.Callback):
-    def __init__(self, model_tosave, int_logr ):
+    def __init__(self, model_tosave, int_logr, save_model_every_n_epochs=100 ):
         self.m_model = model_tosave
         self.m_int_logr = int_logr
+        self.save_model_every_n_epochs = save_model_every_n_epochs
 
     def on_epoch_begin(self, epoch, logs={}):
-        if epoch>0 and epoch%100 == 0:
+        if epoch>0 and epoch%self.save_model_every_n_epochs == 0:
             fname = self.m_int_logr.dir() + '/core_model.%d.keras' %(epoch)
             print 'CustomModelCallback::Save Intermediate Model : ', fname
             self.m_model.save( fname )
@@ -140,19 +141,28 @@ class CustomModelCallback(keras.callbacks.Callback):
         if epoch%5 == 0:
             print 'CustomModelCallback::m_int_logr=', self.m_int_logr.dir()
 
-
-
+import signal
+import sys
+def signal_handler(sig, frame):
+    #TODO: somehow get access to current epoch number and write the mdoel file accordingly
+    print('You pressed Ctrl+C!')
+    print 'Save Current Model : ',  int_logr.dir() + '/core_modelX.keras'
+    model.save( int_logr.dir() + '/core_modelX.keras' )
+    sys.exit(0)
 
 # Training
 if __name__ == '__main__':
     from keras.backend.tensorflow_backend import set_session
     import tensorflow as tf
+    print '==================================================='
     print 'Keras version: ', keras.__version__
     print 'Tensorflow Version: ', tf.__version__
+    print '==================================================='
     config = tf.ConfigProto()
     config.gpu_options.per_process_gpu_memory_fraction = 0.9
     # config.gpu_options.visible_device_list = "0"
     set_session(tf.Session(config=config))
+    signal.signal(signal.SIGINT, signal_handler)
 
     #---
     image_nrows = 240
@@ -162,25 +172,32 @@ if __name__ == '__main__':
     #---
     nP = 6
     nN = 6
-    netvlad_num_clusters = 32
+    netvlad_num_clusters = 16
+
+    initial_epoch = 0 # for resuming training. If this is a non-zero value will load the corresponding model from log_dir
     n_samples = 52 #< training sames to load for the epoch
     batch_size = 4  #< training batch size. aka, how many tuples must be there in 1 sample.
-    refresh_data_after_n_epochs = 20  # after how many iterations you want me to refresh the data
+    refresh_data_after_n_epochs = 120  # after how many iterations you want me to refresh the data
+    save_model_every_n_epochs = 100 # after every how many epochs you want me to write the models
+
 
     #---
-    # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_allpairloss/' )
-    # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_tripletloss2/' )
+    # LOG_DIR = './models.keras/mobilenet_conv7_allpairloss/'
+    # LOG_DIR = './models.keras/mobilenet_conv7_tripletloss2/'
 
-    # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_quash_chnls_allpairloss/' )
-    # int_logr = InteractiveLogger( './models.keras/mobilenet_conv7_quash_chnls_tripletloss2_K64/' )
+    # LOG_DIR = './models.keras/mobilenet_conv7_quash_chnls_allpairloss/'
+    # LOG_DIR = './models.keras/mobilenet_conv7_quash_chnls_tripletloss2_K64/'
 
-    # int_logr = InteractiveLogger( './models.keras/vgg16/block5_pool_k32_allpairloss' )
-    # int_logr = InteractiveLogger( './models.keras/vgg16/block5_pool_k32_tripletloss2' )
+    # LOG_DIR = './models.keras/vgg16/block5_pool_k32_allpairloss'
+    # LOG_DIR = './models.keras/vgg16/block5_pool_k32_tripletloss2'
 
-    # int_logr = InteractiveLogger( './models.keras/mobilenet_new/pw13_quash_chnls_k16_allpairloss' )
-    # int_logr = InteractiveLogger( './models.keras/mobilenet_new/pw13_quash_chnls_k16_tripletloss2' )
+    # LOG_DIR = './models.keras/mobilenet_new/pw13_quash_chnls_k16_allpairloss'
+    # LOG_DIR = './models.keras/mobilenet_new/pw13_quash_chnls_k16_tripletloss2'
 
-    int_logr = InteractiveLogger( './models.keras/tmp/' )
+    LOG_DIR = './models.keras/tmp1/'
+    # LOG_DIR = './models.keras/K16_gray_training'
+    global int_logr
+    int_logr = InteractiveLogger( LOG_DIR )
 
     #---
     PITS_PATH = '/Bulk_Data/data_Akihiko_Torii/Pitssburg/'
@@ -192,6 +209,7 @@ if __name__ == '__main__':
     # Core Model Setup
     #--------------------------------------------------------------------------
     # Build
+    global model
     input_img = keras.layers.Input( shape=(image_nrows, image_ncols, image_nchnl ) )
     cnn = make_from_mobilenet( input_img, layer_name='conv_pw_13_relu', weights=None )
     # cnn = make_from_vgg16( input_img, layer_name='block5_pool' )
@@ -216,7 +234,7 @@ if __name__ == '__main__':
 
 
 
-    initial_epoch = 0
+
     if initial_epoch > 0:
         # Load Previous Weights
         model.load_weights(  int_logr.dir() + '/core_model.%d.keras' %(initial_epoch) )
@@ -225,7 +243,7 @@ if __name__ == '__main__':
 
 
     #--------------------------------------------------------------------------
-    # TimeDistributed
+    # TimeDistributed - This is a hack to get Weakly-supervised learning working
     #--------------------------------------------------------------------------
     t_input = keras.layers.Input( shape=(1+nP+nN, image_nrows, image_ncols, image_nchnl ) )
     t_out = keras.layers.TimeDistributed( model )( t_input )
@@ -241,13 +259,17 @@ if __name__ == '__main__':
     #--------------------------------------------------------------------------
     # Compile
     #--------------------------------------------------------------------------
+
+    #-----(a) Gradient Descent Algorithm
     # sgdopt = keras.optimizers.Adadelta( lr=2.0 )
     sgdopt = keras.optimizers.Adam(  )
 
+    #-----(b) Loss
     loss = triplet_loss2_maker(nP=nP, nN=nN, epsilon=0.3)
     # loss = allpair_hinge_loss_with_positive_set_deviation_maker(nP=nP, nN=nN, epsilon=0.3, opt_lambda=0.5 )
     # loss = allpair_hinge_loss_maker( nP=nP, nN=nN, epsilon=0.3 )
 
+    #-----(c) Evaluation Metric (on validation_data)
     metrics = [ allpair_count_goodfit_maker( nP=nP, nN=nN, epsilon=0.3 ),
                 positive_set_deviation_maker(nP=nP, nN=nN)
               ]
@@ -256,14 +278,19 @@ if __name__ == '__main__':
     t_model.compile( loss=loss, optimizer=sgdopt, metrics=metrics )
 
 
+    #-----(d) Callbacks Setup
     import tensorflow as tf
     tb = tf.keras.callbacks.TensorBoard( log_dir=int_logr.dir() )
-    saver_cb = CustomModelCallback( model, int_logr )
+    saver_cb = CustomModelCallback( model, int_logr, save_model_every_n_epochs=save_model_every_n_epochs )
     reduce_lr = keras.callbacks.ReduceLROnPlateau(monitor='loss', factor=0.6, patience=75, verbose=1, min_lr=0.05)
 
+
+    #-----(e) Sequence generator setup
     gen = PitsSequence( PITS_PATH,nP=nP, nN=nN, batch_size=batch_size, n_samples=n_samples, initial_epoch=initial_epoch, refresh_data_after_n_epochs=refresh_data_after_n_epochs, image_nrows=image_nrows, image_ncols=image_ncols, image_nchnl=image_nchnl)
     gen_validation = PitsSequence(PITS_VAL_PATH, nP=nP, nN=nN, batch_size=batch_size, n_samples=n_samples, refresh_data_after_n_epochs=refresh_data_after_n_epochs, image_nrows=image_nrows, image_ncols=image_ncols, image_nchnl=image_nchnl )
     # code.interact(local=locals())
+
+    #-----(f)  fit_generator() ----#
     history = t_model.fit_generator( generator = gen,
                             epochs=2200, verbose=1, initial_epoch=initial_epoch,
                             validation_data = gen_validation ,
@@ -272,12 +299,3 @@ if __name__ == '__main__':
                          )
     print 'Save Final Model : ',  int_logr.dir() + '/core_model.keras'
     model.save( int_logr.dir() + '/core_model.keras' )
-
-    # print 'Save Json : ', int_logr.dir()+'/history.json'
-    # with open( int_logr.dir()+'/history.json', 'w') as f:
-    #     json.dump(history.history, f)
-    #
-    #
-    # print 'Save History : ', int_logr.dir()+'/history.pickle'
-    # with open( int_logr.dir()+'/history.pickle', 'wb' ) as handle:
-    #     pickle.dump(history, handle )
