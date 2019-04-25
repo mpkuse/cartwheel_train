@@ -92,8 +92,8 @@ class PitsSequence(keras.utils.Sequence):
         batch_x = self.D[idx * self.batch_size:(idx + 1) * self.batch_size]
         batch_y = self.y[idx * self.batch_size:(idx + 1) * self.batch_size]
 
-        return np.array( batch_x ), np.array( batch_y )
-        # return np.array( batch_x )*1./255. - 0.5, np.array( batch_y )
+        # return np.array( batch_x ), np.array( batch_y )
+        return np.array( batch_x )*1./255. - 0.5, np.array( batch_y )
        #TODO: Can return another number (sample_weight) for the sample. Which can be judge say by GMS matcher. If we see higher matches amongst +ve set ==> we have good positive samples,
 
 
@@ -175,8 +175,8 @@ if __name__ == '__main__':
     netvlad_num_clusters = 16
 
     initial_epoch = 0 # for resuming training. If this is a non-zero value will load the corresponding model from log_dir
-    n_samples = 52 #< training sames to load for the epoch
-    batch_size = 4  #< training batch size. aka, how many tuples must be there in 1 sample.
+    n_samples = 1200 #< training sames to load for the epoch
+    batch_size = 6  #< training batch size. aka, how many tuples must be there in 1 sample.
     refresh_data_after_n_epochs = 120  # after how many iterations you want me to refresh the data
     save_model_every_n_epochs = 100 # after every how many epochs you want me to write the models
 
@@ -194,8 +194,8 @@ if __name__ == '__main__':
     # LOG_DIR = './models.keras/mobilenet_new/pw13_quash_chnls_k16_allpairloss'
     # LOG_DIR = './models.keras/mobilenet_new/pw13_quash_chnls_k16_tripletloss2'
 
-    LOG_DIR = './models.keras/tmp1/'
-    # LOG_DIR = './models.keras/K16_gray_training'
+    # LOG_DIR = './models.keras/tmp1/'
+    LOG_DIR = './models.keras/Apr2019/gray_conv6_K16__centeredinput'
     global int_logr
     int_logr = InteractiveLogger( LOG_DIR )
 
@@ -211,7 +211,7 @@ if __name__ == '__main__':
     # Build
     global model
     input_img = keras.layers.Input( shape=(image_nrows, image_ncols, image_nchnl ) )
-    cnn = make_from_mobilenet( input_img, layer_name='conv_pw_13_relu', weights=None )
+    cnn = make_from_mobilenet( input_img, layer_name='conv_dw_6_relu', weights=None )
     # cnn = make_from_vgg16( input_img, layer_name='block5_pool' )
     # Reduce nChannels of the output.
     # @ Downsample (Optional)
