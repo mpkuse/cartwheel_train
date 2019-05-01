@@ -7,23 +7,26 @@ import numpy as np
 import cv2
 import code
 
-from CustomNets import NetVLADLayer
+from CustomNets import NetVLADLayer, GhostVLADLayer
 from predict_utils import open_json_file, change_model_inputshape
 
 def simple_load_demo():
     """
     The way to a)load json-formatted models b)loading weights c) sample prediction
     """
-    LOG_DIR = 'models.keras/Apr2019/K16_gray_training/'
-    
+    # LOG_DIR = 'models.keras/Apr2019/K16_gray_training/'
+    LOG_DIR = 'models.keras/Apr2019/gray_conv6_K16Ghost1__centeredinput/'
+
+
     # Load JSON formatted model
     json_string = open_json_file( LOG_DIR+'/model.json' )
     print '======================='
     pprint.pprint( json_string, indent=4 )
     print '======================='
-    model = keras.models.model_from_json(str(json_string),  custom_objects={'NetVLADLayer': NetVLADLayer} )
+    model = keras.models.model_from_json(str(json_string),  custom_objects={'NetVLADLayer': NetVLADLayer, 'GhostVLADLayer': GhostVLADLayer} )
     print 'OLD MODEL: '
     model.summary()
+    quit()
 
     # Load Weights from model-file
     model_fname = LOG_DIR+'/core_model.%d.keras' %(100)

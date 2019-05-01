@@ -24,7 +24,7 @@ import json
 
 
 # CustomNets
-from CustomNets import NetVLADLayer
+from CustomNets import NetVLADLayer, GhostVLADLayer
 from CustomNets import dataload_, do_typical_data_aug
 from CustomNets import make_from_mobilenet, make_from_vgg16
 
@@ -195,7 +195,8 @@ if __name__ == '__main__':
     # LOG_DIR = './models.keras/mobilenet_new/pw13_quash_chnls_k16_tripletloss2'
 
     # LOG_DIR = './models.keras/tmp1/'
-    LOG_DIR = './models.keras/Apr2019/gray_conv6_K16__centeredinput'
+    # LOG_DIR = './models.keras/Apr2019/gray_conv6_K16__centeredinput'
+    LOG_DIR = './models.keras/Apr2019/gray_conv6_K16Ghost1__centeredinput'
     global int_logr
     int_logr = InteractiveLogger( LOG_DIR )
 
@@ -223,7 +224,8 @@ if __name__ == '__main__':
         cnn = cnn_dwn
 
     # out, out_amap = NetVLADLayer(num_clusters = 32)( cnn )
-    out = NetVLADLayer(num_clusters = netvlad_num_clusters)( cnn )
+    # out = NetVLADLayer(num_clusters = netvlad_num_clusters)( cnn )
+    out = GhostVLADLayer(num_clusters = netvlad_num_clusters, num_ghost_clusters=1)( cnn )
     model = keras.models.Model( inputs=input_img, outputs=out )
 
     # Plot

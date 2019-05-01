@@ -42,7 +42,7 @@ def imshow_set( win_name, D, caption=None ):
 
 def render_and_predict():
     #---------- Setup model
-    LOG_DIR = 'models.keras/Apr2019/K16_gray_training_centeredinput/'
+    LOG_DIR = 'models.keras/Apr2019/gray_conv6_K16__centeredinput/'
 
     # Load json-model
     json_model_fname = LOG_DIR+'/model.json'
@@ -51,12 +51,12 @@ def render_and_predict():
     model = keras.models.model_from_json(str(json_string),  custom_objects={'NetVLADLayer': NetVLADLayer} )
 
     # Load Weights
-    model_fname = LOG_DIR+'/core_model.%d.keras' %(300)
+    model_fname = LOG_DIR+'/core_model.%d.keras' %(400)
     print 'Load model: ', model_fname
     model.load_weights(  model_fname )
 
     # change_model_inputshape
-    new_model = change_model_inputshape( model, new_input_shape=(11,240,320,1) )
+    new_model = change_model_inputshape( model, new_input_shape=(11,480,640,1) )
 
 
 
@@ -66,7 +66,7 @@ def render_and_predict():
 
     for _ in range(100):
         print '---'
-        a,b = pr.step(nP=5, nN=5, ENABLE_IMSHOW=False, return_gray=True, resize=(320, 240))
+        a,b = pr.step(nP=5, nN=5, ENABLE_IMSHOW=False, return_gray=True, resize=(640, 480))
         a = np.copy(a) #if you dont do a copy, keras.predict gives sigsegv
 
         # from CustomNets import do_typical_data_aug
@@ -91,7 +91,10 @@ def render_and_predict():
         imshow_set( 'sim', a[1:6], str(DOT[1:6]) )
         imshow_set( 'dif', a[6:], str(DOT[6:]) )
 
-        cv2.waitKey(0)
+        key = cv2.waitKey(0)
+        if key == ord('q'):
+            print 'Quit...'
+            break
 
     code.interact( local=locals() )
 
