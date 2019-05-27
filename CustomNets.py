@@ -602,7 +602,7 @@ def make_from_vgg19_multiconvup( input_img, trainable=True ):
     return up_conv_out
 
 
-def make_from_mobilenet( input_img, weights='imagenet',  trainable=True, kernel_regularizer=keras.regularizers.l2(0.0001), layer_name='conv_pw_7_relu' ):
+def make_from_mobilenet( input_img, weights='imagenet',  trainable=True, kernel_regularizer=keras.regularizers.l2(0.001), layer_name='conv_pw_7_relu' ):
     # input_img = keras.layers.BatchNormalization()(input_img)
 
     base_model = keras.applications.mobilenet.MobileNet( weights=weights, include_top=False, input_tensor=input_img )
@@ -642,7 +642,7 @@ def make_from_vgg19( input_img, weights='imagenet', trainable=True, layer_name='
 
 
 def make_from_vgg16( input_img, weights='imagenet', trainable=True, kernel_regularizer=keras.regularizers.l2(0.0001), layer_name='block2_pool' ):
-    base_model = keras.applications.vgg16.VGG16(weights=weights, include_top=False, input_tensor=input_img)
+    base_model = keras.applications.vgg16.VGG16(include_top=False, weights=weights, input_tensor=input_img)
 
     for l in base_model.layers:
         l.trainable = trainable

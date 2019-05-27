@@ -93,7 +93,8 @@ class PitsSequence(keras.utils.Sequence):
         batch_y = self.y[idx * self.batch_size:(idx + 1) * self.batch_size]
 
         # return np.array( batch_x ), np.array( batch_y )
-        return np.array( batch_x )*1./255. - 0.5, np.array( batch_y )
+        # return np.array( batch_x )*1./255. - 0.5, np.array( batch_y )
+        return np.array( batch_x )*2./255. - 1.0, np.array( batch_y )
        #TODO: Can return another number (sample_weight) for the sample. Which can be judge say by GMS matcher. If we see higher matches amongst +ve set ==> we have good positive samples,
 
 
@@ -113,7 +114,7 @@ class PitsSequence(keras.utils.Sequence):
 
             # if self.epoch > 400:
             if self.epoch > 400 and self.n_samples_pitts<0:
-                # Data Augmentation after 400 epochs. Only do for Tokyo which are used for training. ie. dont augment Pitssburg.
+                # Data Augmentation after 400 epochs.
                 self.D = do_typical_data_aug( self.D )
 
             print 'returned len(self.D)=', len(self.D), 'self.D[0].shape=', self.D[0].shape
@@ -167,17 +168,24 @@ if __name__ == '__main__':
     #---
     image_nrows = 240
     image_ncols = 320
-    image_nchnl = 1 #cannot make this to 1 if u want to use VGG-pretained-weights, bcoz it was trained with color images. However this is usable (can set chanls=1) if you want to train from scratch
+    image_nchnl = 3 #cannot make this to 1 if u want to use VGG-pretained-weights (from imagenet), bcoz imagenet was trained with color images. However this is usable (can set chanls=1) if you want to train from scratch
 
     #---
+    #   note: some other thing thats need to be set
+    #      a. CNN Type: VGG16, mobilenet
+    #      b. base CNN layer
+
+    CNN_type =  'vgg16'       #'mobilenet'
+    layer_name= 'block5_pool' #'conv_pw_7_relu'
+
     nP = 6
     nN = 6
     netvlad_num_clusters = 16
 
     initial_epoch = 0 # for resuming training. If this is a non-zero value will load the corresponding model from log_dir
-    n_samples = 1200 #< training sames to load for the epoch
-    batch_size = 6  #< training batch size. aka, how many tuples must be there in 1 sample.
-    refresh_data_after_n_epochs = 120  # after how many iterations you want me to refresh the data
+    n_samples = 500 #< training sames to load for the epoch
+    batch_size = 4  #< training batch size. aka, how many tuples must be there in 1 sample.
+    refresh_data_after_n_epochs = 20  # after how many iterations you want me to refresh the data
     save_model_every_n_epochs = 100 # after every how many epochs you want me to write the models
 
 
@@ -196,7 +204,11 @@ if __name__ == '__main__':
 
     # LOG_DIR = './models.keras/tmp1/'
     # LOG_DIR = './models.keras/Apr2019/gray_conv6_K16__centeredinput'
-    LOG_DIR = './models.keras/Apr2019/gray_conv6_K16Ghost1__centeredinput'
+    # LOG_DIR = './models.keras/Apr2019/gray_conv6_K16Ghost1__centeredinput'
+    # LOG_DIR = './models.keras/Apr2019/color_conv6_K16Ghost1__centeredinput'
+    # LOG_DIR = './models.keras/May2019/centeredinput-gray__mobilenet-conv7__K16__allpairloss'
+
+    LOG_DIR = './models.keras/May2019/centeredinput-m1to1-%dx%dx%d__%s-%s__K%d__allpairloss' %(image_nrows, image_ncols, image_nchnl, CNN_type, layer_name, netvlad_num_clusters)
     global int_logr
     int_logr = InteractiveLogger( LOG_DIR )
 
@@ -206,14 +218,28 @@ if __name__ == '__main__':
 
 
 
+
     #--------------------------------------------------------------------------
     # Core Model Setup
     #--------------------------------------------------------------------------
     # Build
     global model
     input_img = keras.layers.Input( shape=(image_nrows, image_ncols, image_nchnl ) )
-    cnn = make_from_mobilenet( input_img, layer_name='conv_dw_6_relu', weights=None )
-    # cnn = make_from_vgg16( input_img, layer_name='block5_pool' )
+
+    if CNN_type=='mobilenet' or CNN_type=='vgg16':
+        pass
+    else:
+        assert( False )
+
+    if CNN_type=='mobilenet':
+        cnn = make_from_mobilenet( input_img, layer_name=layer_name,\
+                    weights=None, kernel_regularizer=keras.regularizers.l2(0.01) )
+
+    if CNN_type == 'vgg16':
+        cnn = make_from_vgg16( input_img, weights='imagenet', layer_name='block5_pool', kernel_regularizer=keras.regularizers.l2(0.001) )
+
+
+
     # Reduce nChannels of the output.
     # @ Downsample (Optional)
     if False: #Downsample last layer (Reduce nChannels of the output.)
@@ -224,8 +250,8 @@ if __name__ == '__main__':
         cnn = cnn_dwn
 
     # out, out_amap = NetVLADLayer(num_clusters = 32)( cnn )
-    # out = NetVLADLayer(num_clusters = netvlad_num_clusters)( cnn )
-    out = GhostVLADLayer(num_clusters = netvlad_num_clusters, num_ghost_clusters=1)( cnn )
+    out = NetVLADLayer(num_clusters = netvlad_num_clusters)( cnn )
+    # out = GhostVLADLayer(num_clusters = netvlad_num_clusters, num_ghost_clusters=1)( cnn )
     model = keras.models.Model( inputs=input_img, outputs=out )
 
     # Plot

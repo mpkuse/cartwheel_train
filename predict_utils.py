@@ -19,7 +19,7 @@ def change_model_inputshape(model, new_input_shape=(None, 40, 40, 3), verbose=Fa
     Given a model and new input shape it changes all the allocations.
 
     Note: It uses custom_objects={'NetVLAD': NetVLADLayer}. If you have any other
-    custom-layer change the code here accordingly. 
+    custom-layer change the code here accordingly.
     """
     # replace input shape of first layer
     model._layers[0].batch_input_shape = new_input_shape
