@@ -25,8 +25,8 @@ import json
 
 # CustomNets
 from CustomNets import NetVLADLayer, GhostVLADLayer
-from CustomNets import dataload_, do_typical_data_aug
 from CustomNets import make_from_mobilenet, make_from_vgg16
+from CustomDataProc import dataload_, do_typical_data_aug
 
 # CustomLoses
 from CustomLosses import triplet_loss2_maker, allpair_hinge_loss_maker, allpair_count_goodfit_maker, positive_set_deviation_maker, allpair_hinge_loss_with_positive_set_deviation_maker

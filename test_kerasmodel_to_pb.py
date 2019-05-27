@@ -3,13 +3,16 @@
 # https://github.com/csvance/keras-tensorrt-jetson
 #
 # Keras model ---> Tensorflow .pb ---> Nvidia's .uff
+#
+# This script works fine on my docker image: mpkuse/kusevisionkit:tfgpu-1.12-tensorrt-5.1
+
 
 
 import keras
 import json
 import pprint
 import numpy as np
-import cv2
+#import cv2
 import code
 
 from CustomNets import NetVLADLayer, GhostVLADLayer
@@ -87,7 +90,7 @@ if FLAGS['output_nodes_prefix']:
                               name=converted_output_node_names[i])
 else:
     converted_output_node_names = orig_output_node_names
-print 'Converted output node names are: %s' %(str(converted_output_node_names))
+print '**Converted output node names are: %s**' %(str(converted_output_node_names))
 
 sess = K.get_session()
 if FLAGS['output_meta_ckpt']:
@@ -120,7 +123,9 @@ else:
 graph_io.write_graph(constant_graph, LOG_DIR, output_model_name,
                      as_text=False)
 print 'Saved the freezed graph at %s' %( LOG_DIR+'/'+output_model_name )
-
+print 'Finished....OK!'
+print 'Now do'
+print '\t\tcd %s\n\t\tconvert-to-uff %s' %( LOG_DIR, output_model_pbtxt_name )
 
 
 ##------------------------------------------------------------------------------##
@@ -129,4 +134,4 @@ print 'Saved the freezed graph at %s' %( LOG_DIR+'/'+output_model_name )
 # Use nvidia's tensorRT on x86 (download 5.1) on a separate docker. Install by the
 # tar method. It installs tensorrt, uff, graphsurgeon.
 #       Then use the utility
-#       `convert-to-uff output_model.pb` --> outputs output_model.uff 
+#       `convert-to-uff output_model.pb` --> outputs output_model.uff

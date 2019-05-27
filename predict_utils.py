@@ -2,7 +2,7 @@ import keras
 import json
 import pprint
 import numpy as np
-import cv2
+# import cv2
 import code
 
 from CustomNets import NetVLADLayer
