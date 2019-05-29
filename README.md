@@ -8,17 +8,17 @@ Manohar Kuse <mpkuse@connect.ust.hk> <br/>
 
 
 ## Required Packages
-[Keras2](https://keras.io) - Deep learning. 
-TensorFlow - Deep learning toolkit (v.1.08+)<br/>
+[Keras](https://keras.io) 2.2.4 - Deep learning. <br/>
+TensorFlow - Deep learning toolkit (v.1.08+, better use v1.12)<br/>
 cv2 - OpenCV <br/>
 numpy - Python Math <br/>
-[imgaug](https://github.com/aleju/imgaug) - Data Augmentation.
+[imgaug](https://github.com/aleju/imgaug) - Data Augmentation. <br/>
 Panda3D - Rendering (only if you use PandaRender.py/PandaRender)<br/>
 
 
 ## Howto train?
-The main code lies in `noveou_train_netvlad_v3.py`. It mainly depends on `CustomNets.py` (contains network definations, NetVLADLayer, data loading, data augmenters) and on `CustomLosses.py` (contains loss functions
-    and validation metrics).
+The main code lies in `noveou_train_netvlad_v3.py`. It mainly depends on `CustomNets.py` (contains network definations, NetVLADLayer, data loading, data augmenters) ; on `CustomLosses.py` (contains loss functions
+    and validation metrics) ; on `CustomDataProc.py` (contains data augmentation, performed with imgaug)
 
 You may want to tune all other parameters such as
 the K for NetVLAD, logging directory, SGD optimizer etc. directly from the script `noveou_train_netvlad_v3.py`
@@ -64,23 +64,40 @@ info under issues on this github repo, I will try and help you out.
 ## Howto obtain image descriptor?
 Usage:
 ```
-python demo_compute_im_descriptor.py
+python demo_keras_hdf5_model.py
 ```
 
 
 ## Pretrained Model
-All my models to be released TODO
+All my models to be released TODO. Until then, please put up an issue to on this
+report to ask-for-it.
 - model-1
 - model-2
 
+## How to Run keras models with TensorRT (TX2)
+I store the keras models as HDF5 files (most prefered). These files need to be converted to
+tensorflow's .pb (protobuf) files. These can then be converted to uff files. UFFParse
+through the TensorRT provides mechanism to execute these kernels. Please refer to
+my [blog pose](https://kusemanohar.wordpress.com/2019/05/25/hands-on-tensorrt-on-nvidiatx2/)
+for more details in this regard.
+
+The following script in this repo, will help you convert hdf5 keras models
+to .uff. Beware, that this is a rapidly changing/evolving thing.
+This info is accurate for May 2019. 
+```
+python util_keras-h5-model_to-tensorflow-pb_to-nvinfer-uff.py --keras_h5_model <path to hdf5 file>
+```
 
 ## References
 If you use my data/code or if you compare with my results, please do cite. Also cite
 the NetVLAD paper whenever appropriate.
 
-- My Paper (Will be added after acceptance)
+- Manohar Kuse and Shaojie Shen, “Learning Whole-Image Descriptors for Real-time Loop Detection and Kidnap Recovery under Large Viewpoint Difference“, submitted to Robotics and Autonomous Systems https://arxiv.org/abs/1904.06962
 - Arandjelovic, Relja, et al. "NetVLAD: CNN architecture for weakly supervised place recognition." Proceedings of the IEEE Conference on Computer Vision and Pattern Recognition. 2016.
 
 ## Copyright Notice
 Released under [MIT license](https://opensource.org/licenses/MIT) unless stated otherwise. The MIT license lets you do anything with the code as long as you provide acknowledgement to me on code use and do not hold me liable for damages if any. Not for commercial use. Contact me
 if you wish to use it commercially.
+
+## Author
+Manohar Kuse <mpkuse@connect.ust.hk>

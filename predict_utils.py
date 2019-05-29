@@ -33,11 +33,11 @@ def change_model_inputshape(model, new_input_shape=(None, 40, 40, 3), verbose=Fa
     new_model.summary()
 
     # copy weights from old model to new one
-    print 'copy weights from old model to new one....this usually takes upto 10 sec'
+    print '[change_model_inputshape] copy weights from old model to new one....this usually takes upto 10 sec'
     for layer in new_model.layers:
         try:
             if verbose:
-                print( 'transfer weights for layer.name='+layer.name )
+                print( '[change_model_inputshape] transfer weights for layer.name='+layer.name )
             layer.set_weights(model.get_layer(name=layer.name).get_weights())
         except:
             print("Could not transfer weights for layer {}".format(layer.name))

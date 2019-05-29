@@ -136,9 +136,9 @@ class CustomModelCallback(keras.callbacks.Callback):
     def on_epoch_begin(self, epoch, logs={}):
         if epoch>0 and epoch%self.save_model_every_n_epochs == 0:
             # TODO: Eventually get rid of this. The current recommend way is to do away with json and store arch and weights together in a HDF5 file
-            fname = self.m_int_logr.dir() + '/core_model.%d.keras' %(epoch)
-            print 'CustomModelCallback::Save Intermediate Model : ', fname
-            self.m_model.save( fname )
+            #fname = self.m_int_logr.dir() + '/core_model.%d.keras' %(epoch)
+            #print 'CustomModelCallback::Save Intermediate Model : ', fname
+            #self.m_model.save( fname )
 
             fname_h5 = self.m_int_logr.dir() + '/modelarch_and_weights.%d.h5' %(epoch)
             print 'CustomModelCallback::Save Intermediate Model : ', fname_h5
@@ -174,7 +174,7 @@ if __name__ == '__main__':
     #---
     image_nrows = 240
     image_ncols = 320
-    image_nchnl = 3 #cannot make this to 1 if u want to use VGG-pretained-weights (from imagenet), bcoz imagenet was trained with color images. However this is usable (can set chanls=1) if you want to train from scratch
+    image_nchnl = 1 #cannot make this to 1 if u want to use VGG-pretained-weights (from imagenet), bcoz imagenet was trained with color images. However this is usable (can set chanls=1) if you want to train from scratch
 
     #---
     #   note: some other thing thats need to be set
@@ -182,7 +182,8 @@ if __name__ == '__main__':
     #      b. base CNN layer
 
     CNN_type =  'mobilenet'       #'mobilenet', 'vgg16'
-    layer_name= 'conv_pw_6_relu' #'conv_pw_7_relu', 'block5_pool'
+    layer_name= 'conv_pw_5_relu' #'conv_pw_7_relu', 'block5_pool'
+    init_model_weights = None #'imagenet', None. imagenet only nchanls=3
 
     nP = 6
     nN = 6
@@ -240,10 +241,10 @@ if __name__ == '__main__':
     # weights=imagenet will only work with nchanls=3
     if CNN_type=='mobilenet':
         cnn = make_from_mobilenet( input_img, layer_name=layer_name,\
-                    weights='imagenet', kernel_regularizer=keras.regularizers.l2(0.01) )
+                    weights=init_model_weights, kernel_regularizer=keras.regularizers.l2(0.01) )
 
     if CNN_type == 'vgg16':
-        cnn = make_from_vgg16( input_img, weights='imagenet', layer_name='block5_pool', kernel_regularizer=keras.regularizers.l2(0.01) )
+        cnn = make_from_vgg16( input_img, weights=init_model_weights, layer_name=layer_name, kernel_regularizer=keras.regularizers.l2(0.01) )
 
 
 
