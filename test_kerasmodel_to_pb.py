@@ -23,27 +23,38 @@ from predict_utils import open_json_file, change_model_inputshape
 
 
 LOG_DIR = 'models.keras/May2019/centeredinput-m1to1-240x320x1__mobilenet-conv_pw_7_relu__K16__allpairloss/'
-
+LOG_DIR = 'models.keras/'
 
 ##----------------------------------------------------------------------------##
 ##      LOAD KERAS MODEL
 ##----------------------------------------------------------------------------##
-# Load JSON formatted model
-model_json_fname = LOG_DIR+'/model.json'
-print 'Load model_json_fname:', model_json_fname
-json_string = open_json_file( model_json_fname )
-model = keras.models.model_from_json(str(json_string),  custom_objects={'NetVLADLayer': NetVLADLayer, 'GhostVLADLayer': GhostVLADLayer} )
-if False: # printing
-    print '======================='
-    pprint.pprint( json_string, indent=4 )
-    print '======================='
-    print 'OLD MODEL: '
-    model.summary()
 
-# Load Weights
-model_fname = LOG_DIR+'/core_model.%d.keras' %(1000)
-print 'Load Weights: ', model_fname
-model.load_weights(  model_fname )
+if False:
+    # Load JSON formatted model
+    model_json_fname = LOG_DIR+'/model.json'
+    print 'Load model_json_fname:', model_json_fname
+    json_string = open_json_file( model_json_fname )
+    model = keras.models.model_from_json(str(json_string),  custom_objects={'NetVLADLayer': NetVLADLayer, 'GhostVLADLayer': GhostVLADLayer} )
+    if False: # printing
+        print '======================='
+        pprint.pprint( json_string, indent=4 )
+        print '======================='
+        print 'OLD MODEL: '
+        model.summary()
+
+    # Load Weights
+    model_fname = LOG_DIR+'/core_model.%d.keras' %(1000)
+    print 'Load Weights: ', model_fname
+    model.load_weights(  model_fname )
+    # Save .h5. The output contains the model defination as well as weights
+    # model.save( LOG_DIR+"/modelarch_and_weights.h5" )
+
+
+if True:
+    model_h5_fname = LOG_DIR+'/modelarch_and_weights.h5'
+    print 'Load model_h5_fname: ', model_h5_fname
+    model = keras.models.load_model(model_h5_fname, custom_objects={'NetVLADLayer': NetVLADLayer, 'GhostVLADLayer': GhostVLADLayer}  )
+    model.summary();
 
 
 
@@ -51,8 +62,6 @@ model.load_weights(  model_fname )
 # TODO
 
 
-# Save .h5. The output contains the model defination as well as weights
-model.save( LOG_DIR+"/modelarch_and_weights.h5" )
 
 ##------------------------------------------------------------------------------##
 ##  Keras model to tensorflow .pb
@@ -67,9 +76,29 @@ import tensorflow as tf
 from tensorflow.python.framework import graph_util
 from tensorflow.python.framework import graph_io
 K.set_learning_phase(0)
+sess = K.get_session()
+
+output_model_pbtxt_name = 'output_model.pbtxt'
+print 'Write ', output_model_pbtxt_name
+tf.train.write_graph(sess.graph.as_graph_def(), LOG_DIR,
+                     output_model_pbtxt_name, as_text=True)
+
+output_model_name = 'output_model.pb'
+constant_graph = graph_util.convert_variables_to_constants(
+    sess,
+    sess.graph.as_graph_def(),
+    [node.op.name for node in model.outputs])
+print 'Write ', output_model_name
+graph_io.write_graph(constant_graph, LOG_DIR, output_model_name,
+                     as_text=False)
+
+print 'model.outputs=', [node.op.name for node in model.outputs]
+print '\t\tcd %s ; convert-to-uff %s ; cd -' %( LOG_DIR, output_model_name )
+
+quit()
 
 FLAGS = {}
-FLAGS['output_nodes_prefix'] = None
+FLAGS['output_nodes_prefix'] = 'resulting'
 FLAGS['output_meta_ckpt'] = False
 FLAGS['save_graph_def'] = True
 FLAGS['quantize'] = False
@@ -88,6 +117,7 @@ if FLAGS['output_nodes_prefix']:
             FLAGS['output_nodes_prefix'], i)
         pred[i] = tf.identity(model.outputs[i],
                               name=converted_output_node_names[i])
+
 else:
     converted_output_node_names = orig_output_node_names
 print '**Converted output node names are: %s**' %(str(converted_output_node_names))
@@ -125,7 +155,7 @@ graph_io.write_graph(constant_graph, LOG_DIR, output_model_name,
 print 'Saved the freezed graph at %s' %( LOG_DIR+'/'+output_model_name )
 print 'Finished....OK!'
 print 'Now do'
-print '\t\tcd %s\n\t\tconvert-to-uff %s' %( LOG_DIR, output_model_pbtxt_name )
+print '\t\tcd %s\n\t\tconvert-to-uff %s' %( LOG_DIR, output_model_name )
 
 
 ##------------------------------------------------------------------------------##

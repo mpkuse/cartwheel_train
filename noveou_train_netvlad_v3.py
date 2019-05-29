@@ -94,7 +94,7 @@ class PitsSequence(keras.utils.Sequence):
 
         # return np.array( batch_x ), np.array( batch_y )
         # return np.array( batch_x )*1./255. - 0.5, np.array( batch_y )
-        return np.array( batch_x )*2./255. - 1.0, np.array( batch_y )
+        return np.array( batch_x ).astype('float32')*2./255. - 1.0, np.array( batch_y )
        #TODO: Can return another number (sample_weight) for the sample. Which can be judge say by GMS matcher. If we see higher matches amongst +ve set ==> we have good positive samples,
 
 
@@ -135,9 +135,14 @@ class CustomModelCallback(keras.callbacks.Callback):
 
     def on_epoch_begin(self, epoch, logs={}):
         if epoch>0 and epoch%self.save_model_every_n_epochs == 0:
+            # TODO: Eventually get rid of this. The current recommend way is to do away with json and store arch and weights together in a HDF5 file
             fname = self.m_int_logr.dir() + '/core_model.%d.keras' %(epoch)
             print 'CustomModelCallback::Save Intermediate Model : ', fname
             self.m_model.save( fname )
+
+            fname_h5 = self.m_int_logr.dir() + '/modelarch_and_weights.%d.h5' %(epoch)
+            print 'CustomModelCallback::Save Intermediate Model : ', fname_h5
+            self.m_model.save( fname_h5 )
 
         if epoch%5 == 0:
             print 'CustomModelCallback::m_int_logr=', self.m_int_logr.dir()
@@ -149,6 +154,7 @@ def signal_handler(sig, frame):
     print('You pressed Ctrl+C!')
     print 'Save Current Model : ',  int_logr.dir() + '/core_modelX.keras'
     model.save( int_logr.dir() + '/core_modelX.keras' )
+    model.save( int_logr.dir() + '/modelarch_and_weights.X.h5' )
     sys.exit(0)
 
 # Training
@@ -175,8 +181,8 @@ if __name__ == '__main__':
     #      a. CNN Type: VGG16, mobilenet
     #      b. base CNN layer
 
-    CNN_type =  'vgg16'       #'mobilenet'
-    layer_name= 'block5_pool' #'conv_pw_7_relu'
+    CNN_type =  'mobilenet'       #'mobilenet', 'vgg16'
+    layer_name= 'conv_pw_6_relu' #'conv_pw_7_relu', 'block5_pool'
 
     nP = 6
     nN = 6
@@ -208,7 +214,7 @@ if __name__ == '__main__':
     # LOG_DIR = './models.keras/Apr2019/color_conv6_K16Ghost1__centeredinput'
     # LOG_DIR = './models.keras/May2019/centeredinput-gray__mobilenet-conv7__K16__allpairloss'
 
-    LOG_DIR = './models.keras/May2019/centeredinput-m1to1-%dx%dx%d__%s-%s__K%d__allpairloss' %(image_nrows, image_ncols, image_nchnl, CNN_type, layer_name, netvlad_num_clusters)
+    LOG_DIR = './models.keras/June2019/centeredinput-m1to1-%dx%dx%d__%s-%s__K%d__allpairloss' %(image_nrows, image_ncols, image_nchnl, CNN_type, layer_name, netvlad_num_clusters)
     global int_logr
     int_logr = InteractiveLogger( LOG_DIR )
 
@@ -231,12 +237,13 @@ if __name__ == '__main__':
     else:
         assert( False )
 
+    # weights=imagenet will only work with nchanls=3
     if CNN_type=='mobilenet':
         cnn = make_from_mobilenet( input_img, layer_name=layer_name,\
-                    weights=None, kernel_regularizer=keras.regularizers.l2(0.01) )
+                    weights='imagenet', kernel_regularizer=keras.regularizers.l2(0.01) )
 
     if CNN_type == 'vgg16':
-        cnn = make_from_vgg16( input_img, weights='imagenet', layer_name='block5_pool', kernel_regularizer=keras.regularizers.l2(0.001) )
+        cnn = make_from_vgg16( input_img, weights='imagenet', layer_name='block5_pool', kernel_regularizer=keras.regularizers.l2(0.01) )
 
 
 
@@ -327,3 +334,5 @@ if __name__ == '__main__':
                          )
     print 'Save Final Model : ',  int_logr.dir() + '/core_model.keras'
     model.save( int_logr.dir() + '/core_model.keras' )
+    print 'Save Final Model : ',  int_logr.dir() + '/modelarch_and_weights.h5'
+    model.save( int_logr.dir() + '/modelarch_and_weights.h5' )
