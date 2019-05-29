@@ -51,5 +51,11 @@ print 'NEW MODEL: input_shape=', str(new_input_shape)
 # Sample Predict
 # test new model on a random input image. Besure to check the input range of the model, for example [-1,1] or [-0.5,0.5] or [0,255] etc.
 X = np.random.rand(new_input_shape[0], new_input_shape[1], new_input_shape[2], new_input_shape[3] )
+
+# --- You might want to do any of these normalizations depending on which model files you use. 
+# i__image = np.expand_dims( cv_image.astype('float32'), 0 )
+# i__image = (np.expand_dims( cv_image.astype('float32'), 0 ) - 128.)/255. [-0.5,0.5]
+#i__image = (np.expand_dims( cv_image.astype('float32'), 0 ) - 128.)*2.0/255. #[-1,1]
+
 y_pred = new_model.predict(X)
 print('try predict with a random input_img with shape='+str(X.shape)+'\n'+ str(y_pred) )

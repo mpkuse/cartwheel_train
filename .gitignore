@@ -46,3 +46,4 @@ keezi_walks*
 gdb.txt
 *.keras
 *.remove
+*.remove/*
