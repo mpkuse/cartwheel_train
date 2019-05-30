@@ -83,9 +83,9 @@ for more details in this regard.
 
 The following script in this repo, will help you convert hdf5 keras models
 to .uff. Beware, that this is a rapidly changing/evolving thing.
-This info is accurate for May 2019. 
+This info is accurate for May 2019.
 ```
-python util_keras-h5-model_to-tensorflow-pb_to-nvinfer-uff.py --keras_h5_model <path to hdf5 file>
+python util_keras-h5-model_to-tensorflow-pb_to-nvinfer-uff.py --kerasmodel_h5file <path to hdf5 file>
 ```
 
 ## References

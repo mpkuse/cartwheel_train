@@ -136,18 +136,25 @@ class NetVLADLayer( Layer ):
                                 trainable=True)
 
     def call( self, x ):
+        print 'input x.shape=', x.shape
         # soft-assignment.
         s = K.conv2d( x, self.kernel, padding='same' ) + self.bias
         a = K.softmax( s )
         self.amap = K.argmax( a, -1 )
         # print 'amap.shape', self.amap.shape
 
+        # import code
+        # code.interact( local=locals() )
         # Dims used hereafter: batch, H, W, desc_coeff, cluster
-        a = K.expand_dims( a, -2 )
+        # print 'a.shape (before)=', a.shape
+        a = K.expand_dims( a, -2 ) #original code
+        # a = K.reshape( a, [ K.shape(a)[0], K.shape(a)[1], K.shape(a)[2], 1, K.shape(a)[3]] )
         # print 'a.shape=',a.shape
 
         # Core
-        v = K.expand_dims(x, -1) + self.C
+        # print 'x.shape', x.shape
+        v = K.expand_dims(x, -1) + self.C #original code
+        # v = K.reshape( x, [ K.shape(x)[0],  K.shape(x)[1], K.shape(x)[2], K.shape(x)[3], 1 ] ) + self.C
         # print 'v.shape', v.shape
         v = a * v
         # print 'v.shape', v.shape
