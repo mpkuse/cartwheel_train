@@ -15,6 +15,28 @@ numpy - Python Math <br/>
 [imgaug](https://github.com/aleju/imgaug) - Data Augmentation. <br/>
 Panda3D - Rendering (only if you use PandaRender.py/PandaRender)<br/>
 
+## Run on Docker
+I have created a docker image with the dependencies needed for this code. It needs a
+functioning cuda9 on host pc and nvidia docker installed. Realistically you will want
+to share a folder containing your data and code from host to docker container. This can be
+done with the `-v` option in docker. Also you might want to have GUIs enabled for docker.
+Have a look at [my blog for docker usage](https://kusemanohar.wordpress.com/2018/10/03/docker-for-computer-vision-researchers/)
+ from a computer-vision researcher/developer perspective.
+
+### Core Docker Usage
+```
+$(host) docker run --runtime=nvidia -it mpkuse/kusevisionkit:nvidia-cuda9-tf1.11-torch0.4 bash
+```
+
+### A more realistic Usage
+```
+$(host) cd $HOME/docker_ws
+$(host) git clone <this repo>
+$(host) cd <you data dir>; put your data learning here.
+$(host) docker run --runtime=nvidia -it -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix -v $HOME/docker_ws:/app -v /media/mpkuse/Bulk_Data/:/Bulk_Data  mpkuse/kusevisionkit:nvidia-cuda9-tf1.11-torch0.4 bash
+$(docker) python noveou_train_netvlad_v3.py
+```
+
 
 ## Howto train?
 The main code lies in `noveou_train_netvlad_v3.py`. It mainly depends on `CustomNets.py` (contains network definations, NetVLADLayer, data loading, data augmenters) ; on `CustomLosses.py` (contains loss functions
@@ -82,10 +104,16 @@ my [blog pose](https://kusemanohar.wordpress.com/2019/05/25/hands-on-tensorrt-on
 for more details in this regard.
 
 The following script in this repo, will help you convert hdf5 keras models
-to .uff. Beware, that this is a rapidly changing/evolving thing.
+to .uff. Beware, that this is a rapidly changing/evolving thing. Look at Nvidia's devtalk under TX2 for the latest update on this.
 This info is accurate for May 2019.
 ```
 python util_keras-h5-model_to-tensorflow-pb_to-nvinfer-uff.py --kerasmodel_h5file <path to hdf5 file>
+```
+
+I have also created a script (test_tensorrt_uffparser.py) to quickly test the UFFParser on your desktop (x86). For this you need TensorRT python binding. You may use my docker image for a quick test
+
+```
+docker run --runtime=nvidia -it -e DISPLAY=$DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix -v $HOME/docker_ws:/app -v /media/mpkuse/Bulk_Data/:/Bulk_Data  mpkuse/kusevisionkit:tfgpu-1.12-tensorrt-5.1 bash
 ```
 
 ## References
