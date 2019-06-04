@@ -3,7 +3,8 @@
 import tensorrt as trt
 
 TRT_LOGGER = trt.Logger( trt.Logger.WARNING)
-LOG_DIR = 'models.keras/June2019/centeredinput-m1to1-240x320x3__mobilenet-conv_pw_6_relu__K16__allpairloss/'
+# LOG_DIR = 'models.keras/June2019/centeredinput-m1to1-240x320x3__mobilenet-conv_pw_6_relu__K16__allpairloss/'
+LOG_DIR = 'models.keras/June2019/centeredinput-m1to1-240x320x3__mobilenetv2-block_9_add__K16__allpairloss/'
 uff_fname = 'output_nvinfer.uff'
 
 with trt.Builder( TRT_LOGGER) as builder, builder.create_network() as network, trt.UffParser() as parser:

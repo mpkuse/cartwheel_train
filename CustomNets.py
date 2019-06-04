@@ -58,7 +58,8 @@ def print_model_memory_usage(batch_size, model):
     trainable_count = np.sum([K.count_params(p) for p in set(model.trainable_weights)])
     non_trainable_count = np.sum([K.count_params(p) for p in set(model.non_trainable_weights)])
 
-    print 'Model file (MB): %4.2f' %(4 * (trainable_count + non_trainable_count) / 1024**2 )
+    print 'Model Inputs: ', str(model.inputs), '\nModel Outputs: ', str(model.outputs)
+    print 'Model file (MB): %4.4f' %(4. * (trainable_count + non_trainable_count) / 1024**2 )
     print '#Trainable Params: ', trainable_count
     print 'Layers(batch_size)=%d (MB): %4.2f' %(batch_size, 4.0*batch_size*shapes_mem_count/1024**2 )
 
@@ -78,8 +79,8 @@ def print_flops_report(model):
     flops = tf.profiler.profile(graph=K.get_session().graph,
                                 run_meta=run_meta, cmd='op', options=opts)
     print 'Total floating point operations (FLOPS) : ', flops.total_float_ops
-    print 'Total floating point operations (GFLOPS) : %4.3f' %( flops.total_float_ops/1000.**3 )
-    # return flops.total_float_ops  # Prints the "flops" of the model.
+    print 'Total floating point operations (GFLOPS) : %4.3f' %( flops.total_float_ops/1000.**2 )
+    return flops.total_float_ops  # Prints the "flops" of the model.
 
 
 
@@ -120,6 +121,7 @@ class NetVLADLayer( Layer ):
         self.K = self.num_clusters
         self.D = input_shape[-1]
 
+
         self.kernel = self.add_weight( name='kernel',
                                     shape=(1,1,self.D,self.K),
                                     initializer='uniform',
@@ -135,8 +137,65 @@ class NetVLADLayer( Layer ):
                                 initializer='uniform',
                                 trainable=True)
 
+    # Experimentation for TensorRT
+    # def call( self, x ):
+    #     print 'input x.shape=', x.shape
+    #     # soft-assignment.
+    #     s = K.conv2d( x, self.kernel, padding='same' ) + self.bias
+    #     print 's.shape=', s.shape
+    #     a = K.softmax( s )
+    #     print 'a.shape=',a.shape
+    #
+    #     self.amap = K.argmax( a, -1 ) #<----- currently not needed for output. if need be uncomment this and will also have to change compute_output_shape
+    #     print 'amap.shape', self.amap.shape
+    #
+    #     # import code
+    #     # code.interact( local=locals() )
+    #     # Dims used hereafter: batch, H, W, desc_coeff, cluster
+    #     print 'a.shape (before)=', a.shape
+    #     # a = K.expand_dims( a, -2 ) #original code
+    #     # a = K.reshape( a, [ K.shape(a)[0], K.shape(a)[1], K.shape(a)[2], 1, K.shape(a)[3]] ) # I think only for unknown shapes should use K.shape(a)[0] etc
+    #     a = K.reshape( a, [ K.shape(a)[0], a.shape[1].value, a.shape[2].value, 1, a.shape[3].value ] )
+    #     print 'a.shape=',a.shape
+    #
+    #
+    #     # Core
+    #     print 'x.shape', x.shape
+    #     # v = K.expand_dims(x, -1) + self.C #original code
+    #     v_tmp = K.reshape( x, [ K.shape(x)[0],  x.shape[1].value, x.shape[2].value, x.shape[3].value, 1 ] )
+    #     print 'v_tmp.shape', v_tmp.shape, '\tself.C.shape', self.C.shape
+    #     v = v_tmp + self.C
+    #     print 'v.shape', v.shape
+    #     return v
+    #     v = a * v
+    #     # print 'v.shape', v.shape
+    #     v = K.sum(v, axis=[1, 2])
+    #     # print 'v.shape', v.shape
+    #     v = K.permute_dimensions(v, pattern=[0, 2, 1])
+    #     print 'v.shape', v.shape
+    #     #v.shape = None x K x D
+    #
+    #     # Normalize v (Intra Normalization)
+    #     v = K.l2_normalize( v, axis=-1 )
+    #     v = K.batch_flatten( v )
+    #     v = K.l2_normalize( v, axis=-1 )
+    #
+    #     # return [v, self.amap]
+    #     print 'v.shape (final)', v.shape
+    #     return v
+    #
+    # def compute_output_shape( self, input_shape ):
+    #
+    #     # return [(input_shape[0], self.K*self.D ), (input_shape[0], input_shape[1], input_shape[2]) ]
+    #     # return (input_shape[0], self.K*self.D )
+    #
+    #     # return (input_shape[0], input_shape[1], input_shape[2], 1, self.K) #s
+    #     return (input_shape[0], input_shape[1], input_shape[2], self.D, self.K) #s
+
+
+    # Old code - working fine
     def call( self, x ):
-        print 'input x.shape=', x.shape
+        # print 'input x.shape=', x.shape
         # soft-assignment.
         s = K.conv2d( x, self.kernel, padding='same' ) + self.bias
         a = K.softmax( s )
@@ -372,6 +431,24 @@ def make_from_mobilenet( input_img, weights='imagenet',  trainable=True, kernel_
 
     return base_model_out
 
+
+def make_from_mobilenetv2( input_img, weights='imagenet',  trainable=True, kernel_regularizer=keras.regularizers.l2(0.001), layer_name='block_9_add' ):
+    base_model = keras.applications.mobilenet_v2.MobileNetV2( weights=weights, include_top=False, input_tensor=input_img )
+
+    for l in base_model.layers:
+        l.trainable = trainable
+
+    # Add Regularizers
+    if kernel_regularizer is not None:
+        for layer in base_model.layers:
+            if 'kernel_regularizer' in dir( layer ):
+                # layer.kernel_regularizer = keras.regularizers.l2(0.001)
+                layer.kernel_regularizer = kernel_regularizer
+
+    # Pull out a layer from original network
+    base_model_out = base_model.get_layer( layer_name ).output # can also try conv_pw_7_relu etc.
+
+    return base_model_out
 
 
 def make_from_vgg19( input_img, weights='imagenet', trainable=True, layer_name='block2_pool' ):

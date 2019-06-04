@@ -3,14 +3,12 @@ A sleek, easy to read/modify implementation of NetVLAD. This needs Keras2.
 I have made this with Tensorflow1.11 as the backend but in principle should
 also work with other backends supported by keras.
 
-## Author
-Manohar Kuse <mpkuse@connect.ust.hk> <br/>
-
+![Netvlad Block Diagram](resources/netvlad_block.png)
 
 ## Required Packages
 [Keras](https://keras.io) 2.2.4 - Deep learning. <br/>
 TensorFlow - Deep learning toolkit (v.1.08+, better use v1.12)<br/>
-cv2 - OpenCV <br/>
+cv2 - OpenCV3.3 (Using opencv only for imread, resize, so wont matter the version so much) <br/>
 numpy - Python Math <br/>
 [imgaug](https://github.com/aleju/imgaug) - Data Augmentation. <br/>
 Panda3D - Rendering (only if you use PandaRender.py/PandaRender)<br/>
@@ -95,6 +93,21 @@ All my models to be released TODO. Until then, please put up an issue to on this
 report to ask-for-it.
 - model-1
 - model-2
+
+## Useful Utilities
+
+#### - Print Memory and FLOPS related info on the Keras hdf5 models.
+```
+$ python util_kerasmodel_edit.py --kerasmodel_h5file <.h5 file path>
+```
+
+
+#### - Edit input dimensions for a fully convolutional Keras hdf5 model.
+```
+$ python util_kerasmodel_edit.py --kerasmodel_h5file <.h5 file path> --rows <say 100> --cols <say 150>
+```
+
+
 
 ## How to Run keras models with TensorRT (TX2)
 I store the keras models as HDF5 files (most prefered). These files need to be converted to

@@ -40,18 +40,30 @@ def load_basic_model( ):
     from CustomNets import make_from_mobilenet, make_from_vgg16
     from CustomNets import NetVLADLayer, GhostVLADLayer
 
-    input_img = keras.layers.Input( shape=(240, 320, 3 ) )
-    cnn = make_from_mobilenet( input_img, layer_name='conv_pw_5_relu', weights=None, kernel_regularizer=keras.regularizers.l2(0.01) )
-    # cnn = make_from_vgg16( input_img, weights=None, layer_name='block5_pool', kernel_regularizer=keras.regularizers.l2(0.01) )
+    # Please choose only one of these.
+    if False: # VGG
+        input_img = keras.layers.Input( shape=(240, 320, 3 ) )
+        cnn = make_from_vgg16( input_img, weights=None, layer_name='block5_pool', kernel_regularizer=keras.regularizers.l2(0.01) )
+        model = keras.models.Model( inputs=input_img, outputs=cnn )
 
-    # base_model = keras.applications.mobilenet_v2.MobileNetV2( weights=None, include_top=False, input_tensor=input_img )
-    # cnn = base_model.get_layer( 'block_11_add' ).output
+    if True: #mobilenet
+        input_img = keras.layers.Input( shape=(240, 320, 3 ) )
+        cnn = make_from_mobilenet( input_img, layer_name='conv_pw_5_relu', weights=None, kernel_regularizer=keras.regularizers.l2(0.01) )
+        model = keras.models.Model( inputs=input_img, outputs=cnn )
 
-    model = keras.models.Model( inputs=input_img, outputs=cnn )
+    if False: #mobilenet+netvlad
+        input_img = keras.layers.Input( shape=(240, 320, 3 ) )
+        cnn = make_from_mobilenet( input_img, layer_name='conv_pw_5_relu', weights=None, kernel_regularizer=keras.regularizers.l2(0.01) )
+        # cnn = make_from_vgg16( input_img, weights=None, layer_name='block5_pool', kernel_regularizer=keras.regularizers.l2(0.01) )
+        out = NetVLADLayer(num_clusters = 16)( cnn )
+        model = keras.models.Model( inputs=input_img, outputs=out )
+
+    if False: #netvlad only
+        input_img = keras.layers.Input( shape=(60, 80, 256 ) )
+        out = NetVLADLayer(num_clusters = 16)( input_img )
+        model = keras.models.Model( inputs=input_img, outputs=out )
 
 
-    # out = NetVLADLayer(num_clusters = 16)( cnn )
-    # model = keras.models.Model( inputs=input_img, outputs=out )
 
 
     model.summary()
@@ -103,6 +115,13 @@ def write_kerasmodel_as_tensorflow_pb( model, LOG_DIR, output_model_name='output
     print tcol.OKGREEN, 'Write ', output_model_pbtxt_name, tcol.ENDC
     tf.train.write_graph(constant_graph, LOG_DIR,
                       output_model_pbtxt_name, as_text=True)
+
+    # Write model.summary to file (to get info on input and output shapes)
+    output_modelsummary_fname = LOG_DIR+'/'+output_model_name + '.modelsummary.log'
+    print tcol.OKGREEN, 'Write ', output_modelsummary_fname, tcol.ENDC
+    with open(output_modelsummary_fname,'w') as fh:
+        # Pass the file handle in as a lambda function to make it callable
+        model.summary(print_fn=lambda x: fh.write(x + '\n'))
 
 
 def convert_to_uff( pb_input_fname, uff_output_fname ):
@@ -204,8 +223,11 @@ def verify_generated_uff_with_tensorrt_uffparser( ufffilename ):
     try:
         uffinput = "input_1"
         uffinput_dims = (3,240,320)
+        # uffinput_dims = (256, 80,60)
         uffoutput = "conv_pw_5_relu/Relu6"
         # uffoutput = "net_vlad_layer_1/l2_normalize_1"
+        # uffoutput = "net_vlad_layer_1/add_1"
+        # uffoutput = "net_vlad_layer_1/Reshape_1"
 
         TRT_LOGGER = trt.Logger( trt.Logger.WARNING)
         with trt.Builder( TRT_LOGGER) as builder, builder.create_network() as network, trt.UffParser() as parser:
@@ -227,7 +249,7 @@ if __name__ == '__main__':
     #---
     # Parse Command line
     parser = argparse.ArgumentParser(description='Convert Keras hdf5 models to .uff models for TensorRT.')
-    parser.add_argument('--kerasmodel_h5file', '-h5', type=str, help='The input keras modelarch_and_weights full filename')
+    parser.add_argument('--kerasmodel_h5file', '-h5', required=True, type=str, help='The input keras modelarch_and_weights full filename')
     args = parser.parse_args()
 
 
@@ -247,9 +269,9 @@ if __name__ == '__main__':
 
     #---
     # Load HDF5 Keras model
-    # model = load_keras_hdf5_model( kerasmodel_h5file, verbose=True ) #this
-    model = load_basic_model()
-
+    model = load_keras_hdf5_model( kerasmodel_h5file, verbose=True ) #this
+    # model = load_basic_model()
+    # quit()
 
     #-----
     # Replace Input Layer's Dimensions

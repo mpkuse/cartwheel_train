@@ -25,7 +25,7 @@ import json
 
 # CustomNets
 from CustomNets import NetVLADLayer, GhostVLADLayer
-from CustomNets import make_from_mobilenet, make_from_vgg16
+from CustomNets import make_from_mobilenet, make_from_vgg16, make_from_mobilenetv2
 from CustomDataProc import dataload_, do_typical_data_aug
 
 # CustomLoses
@@ -174,16 +174,16 @@ if __name__ == '__main__':
     #---
     image_nrows = 240
     image_ncols = 320
-    image_nchnl = 1 #cannot make this to 1 if u want to use VGG-pretained-weights (from imagenet), bcoz imagenet was trained with color images. However this is usable (can set chanls=1) if you want to train from scratch
+    image_nchnl = 3 #cannot make this to 1 if u want to use VGG-pretained-weights (from imagenet), bcoz imagenet was trained with color images. However this is usable (can set chanls=1) if you want to train from scratch
 
     #---
     #   note: some other thing thats need to be set
     #      a. CNN Type: VGG16, mobilenet
     #      b. base CNN layer
 
-    CNN_type =  'mobilenet'       #'mobilenet', 'vgg16'
-    layer_name= 'conv_pw_5_relu' #'conv_pw_7_relu', 'block5_pool'
-    init_model_weights = None #'imagenet', None. imagenet only nchanls=3
+    CNN_type =  'mobilenetv2'       #'mobilenet', 'vgg16', 'mobilenetv2'
+    layer_name= 'block_9_add' #'conv_pw_7_relu', 'block5_pool', 'block_9_add'
+    init_model_weights = 'imagenet' #'imagenet', None. imagenet only nchanls=3
 
     nP = 6
     nN = 6
@@ -233,19 +233,23 @@ if __name__ == '__main__':
     global model
     input_img = keras.layers.Input( shape=(image_nrows, image_ncols, image_nchnl ) )
 
-    if CNN_type=='mobilenet' or CNN_type=='vgg16':
+    if CNN_type=='mobilenet' or CNN_type=='vgg16' or CNN_type =='mobilenetv2':
         pass
     else:
         assert( False )
 
     # weights=imagenet will only work with nchanls=3
+    cnn = None
     if CNN_type=='mobilenet':
         cnn = make_from_mobilenet( input_img, layer_name=layer_name,\
                     weights=init_model_weights, kernel_regularizer=keras.regularizers.l2(0.01) )
 
     if CNN_type == 'vgg16':
-        cnn = make_from_vgg16( input_img, weights=init_model_weights, layer_name=layer_name, kernel_regularizer=keras.regularizers.l2(0.01) )
+        cnn = make_from_vgg16( input_img, weights=init_model_weights, layer_name=layer_name, kernel_regularizer=keras.regularizers.l2(0.001) )
 
+    if CNN_type == 'mobilenetv2':
+        cnn = make_from_mobilenetv2( input_img,  layer_name=layer_name,\
+        weights=init_model_weights, kernel_regularizer=keras.regularizers.l2(0.01) )
 
 
     # Reduce nChannels of the output.
