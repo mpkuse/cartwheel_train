@@ -98,7 +98,7 @@ report to ask-for-it.
 
 #### - Print Memory and FLOPS related info on the Keras hdf5 models.
 ```
-$ python util_kerasmodel_edit.py --kerasmodel_h5file <.h5 file path>
+$ python util_kerasmodel_info.py --kerasmodel_h5file <.h5 file path>
 ```
 
 
@@ -107,7 +107,13 @@ $ python util_kerasmodel_edit.py --kerasmodel_h5file <.h5 file path>
 $ python util_kerasmodel_edit.py --kerasmodel_h5file <.h5 file path> --rows <say 100> --cols <say 150>
 ```
 
+### - Convert Keras model to Tensorflow protobuf (aka. frozen_graph)
+```
+$ python util_kerasmodel_to_tensorflow-pb.py --kerasmodel_h5file <.h5 file>
+```
 
+this will produce a .pb file and a .pbtxt look at the log. After that see the script, [test_frozengraph_predictions.py](test_frozengraph_predictions.py) for a sample
+of how to do inference with this .pb. 
 
 ## How to Run keras models with TensorRT (TX2)
 I store the keras models as HDF5 files (most prefered). These files need to be converted to

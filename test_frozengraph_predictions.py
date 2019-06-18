@@ -14,7 +14,7 @@ import numpy as np
 import time
 
 PB_PATH = 'models.keras/June2019/centeredinput-m1to1-240x320x3__mobilenetv2-block_9_add__K16__allpairloss/'
-PB_FNAME = PB_PATH+'/'+'output_model.pb'
+PB_FNAME = PB_PATH+'/'+'modelarch_and_weights.800.480x640x3.pb'
 
 
 #---
