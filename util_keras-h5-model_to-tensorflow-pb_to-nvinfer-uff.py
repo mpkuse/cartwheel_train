@@ -300,10 +300,10 @@ if __name__ == '__main__':
 
     #-----
     # Write UFF
-    convert_to_uff( pb_input_fname=LOG_DIR+'/output_model.pb', uff_output_fname=LOG_DIR+'/output_nvinfer.uff' )
+    #convert_to_uff( pb_input_fname=LOG_DIR+'/output_model.pb', uff_output_fname=LOG_DIR+'/output_nvinfer.uff' )
     # convert_to_uff( pb_input_fname=LOG_DIR+'/output_model_aftersurgery.pb', uff_output_fname=LOG_DIR+'/output_nvinfer.uff' )
 
 
     #-----
     # Try to load UFF with tensorrt
-    verify_generated_uff_with_tensorrt_uffparser( ufffilename=LOG_DIR+'/output_nvinfer.uff' )
+    #verify_generated_uff_with_tensorrt_uffparser( ufffilename=LOG_DIR+'/output_nvinfer.uff' )

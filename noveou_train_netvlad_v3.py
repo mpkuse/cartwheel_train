@@ -109,13 +109,17 @@ class PitsSequence(keras.utils.Sequence):
 
             self.D = self.pr.step_n_times(n_samples=self.n_samples_pitts, nP=self.nP, nN=self.nN, resize=self.resize, return_gray=self.return_gray, ENABLE_IMSHOW=self.ENABLE_IMSHOW )
             self.y = np.zeros( len(self.D) )
-            print 'len(D)=', len(self.D), '\tD[0].shape=', self.D[0].shape
+            print 'epoch=', self.epoch, '\tlen(D)=', len(self.D), '\tD[0].shape=', self.D[0].shape
 
 
-            # if self.epoch > 400:
-            if self.epoch > 400 and self.n_samples_pitts<0:
+            if self.epoch > 10:
+            # if self.epoch > 400 and self.n_samples_pitts<0:
                 # Data Augmentation after 400 epochs.
+                print tcolor.WARNING, 'do_typical_data_aug', tcolor.ENDC
                 self.D = do_typical_data_aug( self.D )
+            else:
+                print tcolor.WARNING, 'NO Data Augmentation', tcolor.ENDC
+
 
             print 'returned len(self.D)=', len(self.D), 'self.D[0].shape=', self.D[0].shape
             self.y = np.zeros( len(self.D) )
@@ -153,7 +157,7 @@ def signal_handler(sig, frame):
     #TODO: somehow get access to current epoch number and write the mdoel file accordingly
     print('You pressed Ctrl+C!')
     print 'Save Current Model : ',  int_logr.dir() + '/core_modelX.keras'
-    model.save( int_logr.dir() + '/core_modelX.keras' )
+    # model.save( int_logr.dir() + '/core_modelX.keras' )
     model.save( int_logr.dir() + '/modelarch_and_weights.X.h5' )
     sys.exit(0)
 
@@ -174,7 +178,7 @@ if __name__ == '__main__':
     #---
     image_nrows = 240
     image_ncols = 320
-    image_nchnl = 3 #cannot make this to 1 if u want to use VGG-pretained-weights (from imagenet), bcoz imagenet was trained with color images. However this is usable (can set chanls=1) if you want to train from scratch
+    image_nchnl = 1 #cannot make this to 1 if u want to use VGG-pretained-weights (from imagenet), bcoz imagenet was trained with color images. However this is usable (can set chanls=1) if you want to train from scratch
 
     #---
     #   note: some other thing thats need to be set
@@ -183,7 +187,7 @@ if __name__ == '__main__':
 
     CNN_type =  'mobilenetv2'       #'mobilenet', 'vgg16', 'mobilenetv2'
     layer_name= 'block_9_add' #'conv_pw_7_relu', 'block5_pool', 'block_9_add'
-    init_model_weights = 'imagenet' #'imagenet', None. imagenet only nchanls=3
+    init_model_weights = None #'imagenet', None. imagenet only nchanls=3
 
     nP = 6
     nN = 6

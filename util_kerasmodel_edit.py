@@ -16,11 +16,14 @@ import argparse
 import TerminalColors
 tcol = TerminalColors.bcolors()
 
+import tensorflow as tf
 
-def load_keras_hdf5_model( kerasmodel_h5file, verbose=True  ):
+
+def load_keras_hdf5_model( kerasmodel_h5file, verbose=True, inference_only=False  ):
     """ Loads keras model from a HDF5 file """
     assert os.path.isfile( kerasmodel_h5file ), 'The model weights file doesnot exists or there is a permission issue.'+"kerasmodel_file="+kerasmodel_h5file
-    # K.set_learning_phase(0)
+    if inference_only:
+        K.set_learning_phase(0)
 
     model = keras.models.load_model(kerasmodel_h5file, custom_objects={'NetVLADLayer': NetVLADLayer, 'GhostVLADLayer': GhostVLADLayer}  )
 
@@ -68,15 +71,15 @@ if __name__ == '__main__':
     #---
     # Change Shape
     new_input_shape= (  None, nrows, ncols, model.input.shape[3].value )
-    new_model = change_model_inputshape( model, new_input_shape=new_input_shape )
-
+    new_model = change_model_inputshape( model, new_input_shape=new_input_shape, verbose=True )
+    new_model.summary()
 
 
     #---
     # Model Save
     new_model_fname = '.'.join( kerasmodel_h5file.split( '.' )[0:-1] )+'.%dx%dx%d.h5' %(new_input_shape[1], new_input_shape[2], new_input_shape[3])
     print '====\n====Save new_model to:', tcol.OKBLUE, new_model_fname, tcol.ENDC, '\n===='
-    import code
-    code.interact( local=locals() )
+    # import code
+    # code.interact( local=locals() )
     new_model.save( new_model_fname )
     print tcol.OKGREEN+'====DONE===='+tcol.ENDC

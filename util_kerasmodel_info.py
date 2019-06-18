@@ -79,6 +79,7 @@ if __name__ == '__main__':
     #---
     # Load HDF5 Keras model
     model = load_keras_hdf5_model( kerasmodel_h5file, verbose=True ) #this
+    model.summary()
 
 
 
