@@ -113,7 +113,15 @@ $ python util_kerasmodel_to_tensorflow-pb.py --kerasmodel_h5file <.h5 file>
 ```
 
 this will produce a .pb file and a .pbtxt look at the log. After that see the script, [test_frozengraph_predictions.py](test_frozengraph_predictions.py) for a sample
-of how to do inference with this .pb. 
+of how to do inference with this .pb.
+
+### - Convert Tensorflow protobuf (aka frozen_graph .pb) to Nvidia's UFF
+```
+$ python util_pb_to_uff.py -pb <full path of a .pb file>
+```
+
+This is practically same as using the nvidia's commandline utility `convert-to-uff`. Python code adopted from [nvidia's convert_plan.py](https://github.com/NVIDIA-AI-IOT/tf_to_trt_image_classification/blob/master/scripts/convert_plan.py). See also the following section on TensorRT inference if using on TX2.
+
 
 ## How to Run keras models with TensorRT (TX2)
 I store the keras models as HDF5 files (most prefered). These files need to be converted to
