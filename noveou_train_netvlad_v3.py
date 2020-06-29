@@ -98,7 +98,7 @@ class PitsSequence(keras.utils.Sequence):
        #TODO: Can return another number (sample_weight) for the sample. Which can be judge say by GMS matcher. If we see higher matches amongst +ve set ==> we have good positive samples,
 
 
-    def on_epoch_start(self):
+    def on_epoch_end(self):
         N = self.refresh_data_after_n_epochs
         #print '-----on_epoch_start, self.epoch=', self.epoch, '\tself.refresh_data_after_n_epochs=', self.refresh_data_after_n_epochs
 
